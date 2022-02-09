@@ -5,7 +5,7 @@ pub trait Evaluator {
     fn value(&self, board: &Connect4) -> f64;
 }
 
-
+#[derive(Clone, Copy)]
 pub struct SimpleEval {
     player: Player
 }
@@ -20,28 +20,28 @@ impl Evaluator for SimpleEval {
     fn value(&self, board: &Connect4) -> f64 {
         match board.game_state {
             GameState::Won(p) => {
-                if p == self.player {1.0} else {-1.0}
+                if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {
                 0.0
-                /*let mut sm: f64 = 0.0;
-                for x in 0..3 {
-                    for y in 0..3 {
-                        if board.in_board(x,y) && board[[x as usize,y as usize]] != TileStates::Empty {
-                            sm += 1.0;
-                        }
-                    }
-                }
-                sm.exp()/(1.0+sm.exp())
-                */
             },
         }
-    }
+    }    
 }
 
-
-/*pub struct LinesEval {
+pub struct LinesEval {
     player: Player
-}*/
+}
+
+impl LinesEval {
+
+    fn line_value(v: &Vec<TileStates>) -> f64 {
+        for i in 0..v.len() {
+
+        }
+        unimplemented!()
+    }
+
+}
 

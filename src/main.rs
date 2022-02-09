@@ -1,12 +1,12 @@
 extern crate fastrand;
 
 mod connect4;
-mod minimax;
+mod search;
 mod evaluators;
 
 use connect4::{Connect4, Player, BOARD_HEIGHT, BOARD_WIDTH, GameState, Action};
 use evaluators::{Evaluator, SimpleEval};
-use minimax::{minimax_action, minimax};
+use search::{minimax_action, minimax, abpruning_action, abpruning_best_action};
 use std::io::{self, BufRead};
 
 
@@ -15,15 +15,21 @@ fn main() {
 }
 
 fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T) -> Action {
-    let mut _board = board.clone();
+    /*let mut _board = board.clone();
     let mut action_values: Vec<(Action, f64)> = board.valid_moves()
         .iter()
-        .map(|a| (*a, minimax_action(&mut _board, *a, 5, evaluator)))
+        .map(|a| {
+            //(*a, minimax_action(&mut _board, *a, 5, evaluator))
+            (*a, abpruning_action(&mut _board, *a, 7, evaluator))
+        })
+        //.map(|a| (*a, minimax_action(&mut _board, *a, 6, evaluator)))
         .collect();
     let mx = action_values.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
-    //println!("{:?}", action_values);
+    println!("{:?}", action_values);
     let best_avs = action_values.iter().filter(|(_,v)| *v==mx).collect::<Vec<&(Action,f64)>>();
     best_avs[fastrand::usize(0..best_avs.len())].0
+    */
+    abpruning_best_action(board, 8, evaluator)
 }
 
 // returns (action, is_reverse)
@@ -72,7 +78,6 @@ fn user_vs_user() {
             }
         }
     }
-
 }
 
 fn user_vs_ai() {
@@ -84,6 +89,8 @@ fn user_vs_ai() {
         let (action, reverse) = get_move_from_user(&board);
         if reverse {
             board.reverse_last_move();
+            board.reverse_last_move();
+            continue
         } else {
             board.play_move(action);
             match board.game_state {

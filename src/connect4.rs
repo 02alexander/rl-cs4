@@ -34,7 +34,7 @@ pub enum GameState {
 #[derive(Clone)]
 pub struct Connect4 {
     pub board: Vec<Vec<TileStates>>,
-    actions: Vec<Action>,
+    pub actions: Vec<Action>,
     pub cur_player: Player,
     pub game_state: GameState,
 }
