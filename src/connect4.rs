@@ -180,6 +180,7 @@ impl Connect4 {
 
 impl std::ops::Index<[usize;2]> for Connect4 {
     type Output = TileStates;
+    // idx: [x,y]
     fn index(&self, idx: [usize;2]) -> &Self::Output {
         &self.board[idx[0]][idx[1]]
     }

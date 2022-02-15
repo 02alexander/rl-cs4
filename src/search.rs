@@ -89,11 +89,12 @@ pub fn abpruning_best_action<T: Evaluator>(
     }
 
     unsafe { 
-        println!("count={}", count);
+        //println!("count={}", count);
     }
 
     let mx = avs.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
     let best_avs = avs.iter().filter(|(_,v)| *v==mx).collect::<Vec<&(Action,f64)>>();
+    //println!("{:?}", best_avs);
     best_avs[fastrand::usize(0..best_avs.len())].0
 
 }
