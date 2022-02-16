@@ -42,10 +42,6 @@ impl Evaluator for SimpleEval {
 }
 
 
-
-
-
-
 pub struct LinesEval {
     pub params: Vec<f64>,
     pub player: Player
@@ -95,7 +91,11 @@ impl LinesEval {
                     if !board.in_board(k*dir[1]+c as i32, k*dir[0]+r as i32) {
                         break
                     }
-                    line.push(board[[(k*dir[1]+c as i32) as usize, (k*dir[0]+r as i32) as usize]]);
+                    line.push(match board.get((k*dir[1]+c as i32) as usize, (k*dir[0]+r as i32) as usize) {
+                        0 => TileStates::Empty,
+                        1 => TileStates::Full(Player::Red),
+                        _ => TileStates::Full(Player::Yellow)
+                    });
                     k += 1;
                 }
                 //println!("line={:?}", line);
@@ -263,7 +263,7 @@ impl ConsequtiveEval {
         let mut f = vec![0;3];
         for x in 0..connect4::BOARD_WIDTH {
             for y in 0..connect4::BOARD_HEIGHT {
-                if board[[x,y]] != TileStates::Empty {
+                if board.get(x,y) != 0 {
                     continue
                 }
                 for dir in directions {
@@ -282,7 +282,7 @@ impl ConsequtiveEval {
     fn pieces_in_row(&self, board: &Connect4, pos: [usize;2], dir: [i32;2]) -> u32 {
         let mut k = 1;
         while board.in_board(pos[0] as i32+dir[0] as i32*k, pos[1] as i32+dir[0] as i32*k) 
-            && board[[(pos[0] as i32+dir[0]*k) as usize, (pos[1] as i32+dir[0]*k) as usize]] == TileStates::Full(self.player) {
+            && board.get((pos[0] as i32+dir[0]*k) as usize, (pos[1] as i32+dir[0]*k) as usize) == self.player as u8 {
             k += 1;
         }
         k as u32

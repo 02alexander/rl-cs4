@@ -25,7 +25,7 @@ fn lines_eval_benchmark(c: &mut Criterion) {
         board.play_move(action);
     }
     let evaluator = LinesEval::new(board.cur_player);
-    c.bench_function("ConsecutiveEval, depth=5", |b| b.iter(||{
+    c.bench_function("LinesEval, depth=5", |b| b.iter(||{
         black_box(abpruning_action_values(&mut board, 4, &evaluator))
     }));
 }

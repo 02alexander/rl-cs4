@@ -23,10 +23,11 @@ fn main() {
     */
     
     user_vs_ai();
+    //user_vs_user();
 }
 
 fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T) -> Action {
-    abpruning_best_action(board, 5, evaluator)
+    abpruning_best_action(board, 8, evaluator)
 }
 
 // returns (action, is_reverse)
@@ -81,7 +82,7 @@ fn user_vs_ai() {
     let mut board = Connect4::new();
     let levaluator = ConsequtiveEval::new(board.cur_player);
     //let evaluator = SimpleEval::new(!board.cur_player);
-    let evaluator = ConsequtiveEval::new(!board.cur_player);
+    let evaluator = SimpleEval::new(!board.cur_player);
     loop {
         println!("{:?}", board.actions);
         println!("{:?}", board);

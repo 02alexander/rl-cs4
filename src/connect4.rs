@@ -20,8 +20,8 @@ pub enum TileStates {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Player {
-    Red,
-    Yellow,
+    Red=1,
+    Yellow=2,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -34,11 +34,11 @@ pub enum GameState {
 #[derive(Clone)]
 pub struct Connect4 {
     //pub board: Vec<Vec<TileStates>>,
-    pub board: Vec<TileStates>,
+    //pub board: Vec<TileStates>,
 
     // tile on board takes up 2 bits, 0 for empty, 1 for red, 2 for yellow. 
     // starts in bottom left corner and goes row by row.
-    //pub board: [u64;2],
+    pub board: u128,
     pub actions: Vec<Action>,
     pub cur_player: Player,
     pub game_state: GameState,
@@ -58,7 +58,8 @@ impl Connect4 {
     pub fn new() -> Self {
         Connect4 {
             //board: vec![vec![TileStates::Empty; BOARD_HEIGHT];BOARD_WIDTH], // board[x][y] where x,y=(0,0) is the bottom left corner.
-            board: vec![TileStates::Empty; BOARD_HEIGHT*BOARD_WIDTH],
+            //board: vec![TileStates::Empty; BOARD_HEIGHT*BOARD_WIDTH],
+            board: 0,
             actions: Vec::with_capacity(BOARD_HEIGHT*BOARD_WIDTH),
             cur_player: Player::Red,
             game_state: GameState::InProgress,
@@ -72,7 +73,7 @@ impl Connect4 {
             return
         }
         let ap = self.action_pos(action);
-        self[[ap[0],ap[1]]] = TileStates::Full(self.cur_player);
+        self.set(ap[0],ap[1], self.cur_player as u8);
         if self.player_won(ap) {
             self.game_state = GameState::Won(self.cur_player);
         } else if self.is_full() {
@@ -86,7 +87,7 @@ impl Connect4 {
     pub fn reverse_last_move(&mut self) {
         if let Some(last_action) = self.actions.pop() {
             let ap = self.pos_from_action(last_action);
-            self[[ap[0],ap[1]]] = TileStates::Empty;
+            self.set(ap[0],ap[1],0);
             self.game_state = GameState::InProgress;
             self.cur_player = !self.cur_player;
         }
@@ -94,7 +95,7 @@ impl Connect4 {
 
     pub fn player_won(&self, piece_pos: [usize; 2]) -> bool {
         let directions: [[i32;2];4] = [[1,0],[0,1],[-1,1], [1,1]];
-        let player = if let TileStates::Full(p) = self[[piece_pos[0],piece_pos[1]]] {
+        let player = if let p = self.get(piece_pos[0],piece_pos[1]) {
             p
         } else {
             panic!("player_won() passed piece_pos with empty square");
@@ -106,7 +107,7 @@ impl Connect4 {
                 let cury = direction[1]*i+piece_pos[1] as i32;
                 if !self.in_board(curx, cury) {
                     break;
-                } else if TileStates::Full(player) != self[[curx as usize,cury as usize]] {
+                } else if player as u8 != self.get(curx as usize,cury as usize) {
                     break;
                 } 
                 sm += 1;
@@ -117,7 +118,7 @@ impl Connect4 {
                 let cury = direction[1]*i+piece_pos[1] as i32;
                 if !self.in_board(curx, cury) {
                     break;
-                } else if TileStates::Full(player) != self[[curx as usize,cury as usize]] {
+                } else if player as u8 != self.get(curx as usize,cury as usize) {
                     break;
                 }
                 sm += 1;
@@ -136,7 +137,7 @@ impl Connect4 {
     // Returns where piece will be placed if 'action' is played.
     fn action_pos(&self, action: Action) -> [usize; 2] {
         for cur_y in 0..BOARD_HEIGHT {
-            if  self[[action,cur_y]] == TileStates::Empty {
+            if  self.get(action,cur_y) == 0 {
                 return [action, cur_y];
             }
         }
@@ -146,7 +147,7 @@ impl Connect4 {
     // Returns where piece placed from last played action 'action'
     fn pos_from_action(&self, action: Action) -> [usize; 2] {
         for cur_y in 1..BOARD_HEIGHT {
-            if  self[[action,cur_y]] == TileStates::Empty {
+            if  self.get(action,cur_y) == 0 {
                 return [action, cur_y-1];
             }
         }
@@ -159,7 +160,7 @@ impl Connect4 {
 
     pub fn is_valid_move(&self, action: Action) -> bool {
         assert!(action < BOARD_WIDTH);
-        self[[action,BOARD_HEIGHT-1]] == TileStates::Empty
+        self.get(action,BOARD_HEIGHT-1) == 0
     }
 
     pub fn valid_moves(&self) -> Vec<Action> {
@@ -180,9 +181,9 @@ impl Connect4 {
         
         for x in 0..BOARD_WIDTH {
             for y in 0..BOARD_HEIGHT {
-                if self[[x,y]] == TileStates::Full(player) {
+                if self.get(x,y) == player as u8 {
                     v.push(1.0);
-                } else if self[[x,y]] == TileStates::Full(!player) {
+                } else if self.get(x,y) == !player as u8 {
                     v.push(-1.0);
                 } else {
                     v.push(0.0);
@@ -192,15 +193,26 @@ impl Connect4 {
         v
     }
 
-    fn set(&mut self, x: usize, y: usize, v: TileStates) {
-        
+    pub fn set(&mut self, x: usize, y: usize, v: u8) {
+
+        /*let m = match v {
+            TileStates::Empty => 0,
+            TileStates::Full(Player::Red) => 1,
+            TileStates::Full(Player::Yellow) => 2
+        };*/
+        let k = (2*(x+y*BOARD_WIDTH));
+        let mask = 3 << k;
+        self.board = (self.board & (!mask)) + ((v as u128) << k);
+        //let prev_m = 3 & (self.board >> (2*(x+y*BOARD_WIDTH)));
+        //self.board = self.board ^ ( self.board >> (2*(x+y*BOARD_WIDTH)) );
     }
 
-    fn get(&mut self, x: usize, y:usize) -> TileStates {
-        unimplemented!()
+    pub fn get(&self, x: usize, y:usize) -> u8 {
+        3 & (self.board >> (2*(x+y*BOARD_WIDTH))) as u8
     }
 }
 
+/*
 impl std::ops::Index<[usize;2]> for Connect4 {
     type Output = TileStates;
     // idx: [x,y]
@@ -216,19 +228,19 @@ impl std::ops::IndexMut<[usize;2]> for Connect4 {
         //&mut self.board[idx[0]][idx[1]]
         &mut self.board[ idx[0]+idx[1]*BOARD_WIDTH]
     }
-}
+}*/
 
 impl fmt::Debug for Connect4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = String::new();
         for y in (0..BOARD_HEIGHT).rev() {
             for x in 0..BOARD_WIDTH {
-                match self[[x,y]] {
-                    TileStates::Empty => s.push_str("# "),
-                    TileStates::Full(Player::Red) => {
+                match self.get(x,y) {
+                    0 => s.push_str("# "),
+                    1 => {
                         s.push_str("\x1b[30;41m \x1b[0m ");
                     }
-                    TileStates::Full(Player::Yellow) => {
+                    _ => {
                         s.push_str("\x1b[30;43m \x1b[0m ");
                     }
                 }
