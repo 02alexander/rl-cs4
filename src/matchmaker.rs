@@ -7,8 +7,9 @@ pub trait Agent {
     fn set_player(&mut self, player: Player);
 }
 
+
 pub struct MatchMaker {
-    agents: Vec<Box<dyn Agent>>,
+    pub agents: Vec<Box<dyn Agent>>,
     hist: Vec<(usize, usize, GameState)>, // (idx of red agent, idx of yellow agent, result)
     last_game: Vec<Action>,
 }

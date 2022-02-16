@@ -1,9 +1,35 @@
 
 use crate::connect4::{Connect4, Player, Action, GameState};
 use crate::connect4;
+use crate::matchmaker::Agent;
 use crate::evaluators::Evaluator;
 
 static mut count: u32 = 0;
+
+
+pub struct MinimaxAgent<T> {
+    evaluator: T,
+    depth: u32
+}
+
+impl<T: Evaluator> MinimaxAgent<T> {
+    pub fn new(evaluator: T, depth: u32) -> Self {
+        MinimaxAgent {
+            evaluator,
+            depth
+        }
+    }
+}
+
+impl<T: Evaluator> Agent for MinimaxAgent<T> {
+    fn get_action(&self, board: &Connect4) -> Action {
+        abpruning_best_action(board, self.depth, &self.evaluator)
+    }
+    fn set_player(&mut self, player: Player) {
+        self.evaluator.set_player(player);
+    }
+}
+
 
 pub fn minimax<T: Evaluator>(board: &Connect4, depth: u32, evaluator: &T) -> f64 {
     let mut _board = board.clone();
@@ -73,31 +99,29 @@ pub fn abpruning_action<T: Evaluator>(
     v
 }
 
+pub fn abpruning_action_values<T: Evaluator>(
+    board: &mut Connect4, depth: u32, evaluator: &T) -> Vec<(Action, f64)> {
+    let mut avs = Vec::with_capacity(connect4::N_ACTIONS);
+    for action in board.valid_moves() {
+        let v = abpruning_action(board, action, depth, evaluator);
+        avs.push((action,v));
+    }
+    avs
+}
+
 pub fn abpruning_best_action<T: Evaluator>(
         board: &Connect4, depth: u32, evaluator: &T) -> Action {
 
-    
-    unsafe { 
-        count = 0;
-    }
     let mut _board = board.clone();
 
-    let mut avs = Vec::new();
-    for action in board.valid_moves() {
-        let v = abpruning_action(&mut _board, action, depth-1, evaluator);
-        avs.push((action,v));
-    }
-
-    unsafe { 
-        //println!("count={}", count);
-    }
+    let mut avs = abpruning_action_values(&mut _board, depth-1, evaluator);
 
     let mx = avs.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
     let best_avs = avs.iter().filter(|(_,v)| *v==mx).collect::<Vec<&(Action,f64)>>();
-    //println!("{:?}", best_avs);
+    //println!("{:?}", avs);
     best_avs[fastrand::usize(0..best_avs.len())].0
-
 }
+
 
 fn _abpruning<T: Evaluator>(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, ismaximizing: bool, evaluator: &T) -> f64 {
     if depth == 0 || board.game_state != GameState::InProgress {
