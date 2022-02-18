@@ -6,6 +6,10 @@ use crate::evaluators::Evaluator;
 
 static mut count: u32 = 0;
 
+// these two numbers must be coprime.
+const TABLE_SIZE: usize = 7919;
+const MULTIPLIER: usize = 7909;
+
 
 pub struct MinimaxAgent<T> {
     evaluator: T,
@@ -18,6 +22,39 @@ impl<T: Evaluator> MinimaxAgent<T> {
             evaluator,
             depth
         }
+    }
+}
+
+pub struct TranspositionTable<T> {
+    table: [Option<(u128, T)>;TABLE_SIZE],
+}
+
+pub fn hash(board: u128) -> usize {
+    (board * MULTIPLIER as u128 % TABLE_SIZE as u128) as usize
+}
+
+
+impl<T: Copy> TranspositionTable<T> {
+    pub fn new() -> TranspositionTable<T> {
+        TranspositionTable {
+            table: [None; TABLE_SIZE],
+        }
+    }
+
+    pub fn get(&self, board: u128) -> Option<T> {
+        if let Some((b, val)) = &self.table[hash(board)] {
+            if board == *b {
+                Some(*val)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn set(&mut self, board: u128, value: T) {
+        self.table[hash(board)] = Some((board, value));
     }
 }
 
@@ -92,9 +129,9 @@ pub fn minimax_action<T: Evaluator>(board: &mut Connect4, action: Action, depth:
 }
 
 pub fn abpruning_action<T: Evaluator>(
-        board: &mut Connect4, action: Action, depth: u32, evaluator: &T) -> f64 {
+        board: &mut Connect4, action: Action, depth: u32, evaluator: &T, tt: &mut TranspositionTable<f64>) -> f64 {
     board.play_move(action);
-    let v = _abpruning(board, -1./0., 1./0., depth, false, evaluator);
+    let v = _abpruning(board, -1./0., 1./0., depth, false, evaluator, tt);
     board.reverse_last_move();
     v
 }
@@ -102,8 +139,9 @@ pub fn abpruning_action<T: Evaluator>(
 pub fn abpruning_action_values<T: Evaluator>(
     board: &mut Connect4, depth: u32, evaluator: &T) -> Vec<(Action, f64)> {
     let mut avs = Vec::with_capacity(connect4::N_ACTIONS);
+    let mut tt = TranspositionTable::new();
     for action in board.valid_moves() {
-        let v = abpruning_action(board, action, depth, evaluator);
+        let v = abpruning_action(board, action, depth, evaluator, &mut tt);
         avs.push((action,v));
     }
     avs
@@ -113,7 +151,6 @@ pub fn abpruning_best_action<T: Evaluator>(
         board: &Connect4, depth: u32, evaluator: &T) -> Action {
 
     let mut _board = board.clone();
-
     let mut avs = abpruning_action_values(&mut _board, depth-1, evaluator);
 
     let mx = avs.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
@@ -123,17 +160,27 @@ pub fn abpruning_best_action<T: Evaluator>(
 }
 
 
-fn _abpruning<T: Evaluator>(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, ismaximizing: bool, evaluator: &T) -> f64 {
+fn _abpruning<T: Evaluator>(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, ismaximizing: bool, evaluator: &T, tt: &mut TranspositionTable<f64>) -> f64 {
+    let mut retv = 0.0;
     if depth == 0 || board.game_state != GameState::InProgress {
         unsafe { 
             count += 1;
         }
-        return evaluator.value(&board)
-    } else if ismaximizing {
+        return evaluator.value(&board);
+    }
+    let cached = tt.get(board.board);
+    if let Some(val) = cached {
+        //println!("used {}, {} {}", val, beta, hash(board.board));
+        if val > beta {
+            //println!("kjfg");
+            return val
+        }
+    } 
+    if ismaximizing {
         let mut max_value: f64 = -1.0/0.0;
         for action in board.valid_moves() {
             board.play_move(action);
-            max_value = max_value.max(_abpruning(board, alpha, beta, depth-1, false, evaluator));
+            max_value = max_value.max(_abpruning(board, alpha, beta, depth-1, false, evaluator, tt));
             board.reverse_last_move();
             alpha = alpha.max(max_value);
             
@@ -141,18 +188,38 @@ fn _abpruning<T: Evaluator>(board: &mut Connect4, mut alpha: f64, mut beta: f64,
                 break
             }
         }
-        return max_value
+        retv = max_value;
+        if let Some(v) = cached {
+            if max_value > v {
+                tt.set(board.board, max_value);
+            }
+        } else {
+            tt.set(board.board, max_value);
+        }
     } else {
         let mut min_value: f64 = 1.0/0.0;
         for action in board.valid_moves() {
             board.play_move(action);
-            min_value = min_value.min(_abpruning(board, alpha, beta, depth-1, true, evaluator));
+            min_value = min_value.min(_abpruning(board, alpha, beta, depth-1, true, evaluator, tt));
             board.reverse_last_move();
             beta = beta.min(min_value);
             if min_value <= alpha {
                 break
             }
         }
-        return min_value
+        retv = min_value;
+
     }
+
+    /*if let Some(val) = cached {
+        if val < retv {
+            //println!("replace");
+            tt.set(board.board, retv);
+        }
+    } else {
+        //println!("inserted {} at board {} ", retv, hash(board.board));
+        tt.set(board.board, retv);
+    }*/
+
+    retv
 }
