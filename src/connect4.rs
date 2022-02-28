@@ -1,6 +1,7 @@
 
 use std::fmt;
 use std::ops;
+use serde::{Serialize, Deserialize};
 
 pub const BOARD_WIDTH: usize = 7;
 pub const BOARD_HEIGHT: usize = 6;
@@ -12,26 +13,26 @@ pub const REWARD_DRAW: f64 = 0.0;
 
 pub type Action = usize; // a value in the range of [0,BOARD_WIDTH)
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum TileStates {
     Empty,
     Full(Player),
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Player {
     Red=1,
     Yellow=2,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum GameState {
     Won(Player),
     Draw,
     InProgress
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Connect4 {
     //pub board: Vec<Vec<TileStates>>,
     //pub board: Vec<TileStates>,

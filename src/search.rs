@@ -25,6 +25,15 @@ impl<T: Evaluator> MinimaxAgent<T> {
     }
 }
 
+impl<T: Evaluator> Agent for MinimaxAgent<T> {
+    fn get_action(&self, board: &Connect4) -> Action {
+        abpruning_best_action(board, self.depth, &self.evaluator)
+    }
+    fn set_player(&mut self, player: Player) {
+        self.evaluator.set_player(player);
+    }
+}
+
 pub struct TranspositionTable<T> {
     table: [Option<(u128, T)>;TABLE_SIZE],
 }
@@ -58,16 +67,6 @@ impl<T: Copy> TranspositionTable<T> {
     }
 }
 
-impl<T: Evaluator> Agent for MinimaxAgent<T> {
-    fn get_action(&self, board: &Connect4) -> Action {
-        abpruning_best_action(board, self.depth, &self.evaluator)
-    }
-    fn set_player(&mut self, player: Player) {
-        self.evaluator.set_player(player);
-    }
-}
-
-
 pub fn minimax<T: Evaluator>(board: &Connect4, depth: u32, evaluator: &T) -> f64 {
     let mut _board = board.clone();
     unsafe { 
@@ -75,7 +74,7 @@ pub fn minimax<T: Evaluator>(board: &Connect4, depth: u32, evaluator: &T) -> f64
     }
     let v = _minimax(&mut _board, depth, true, evaluator);
     unsafe { 
-        println!("minimax  count={:?}", count); 
+        //println!("minimax  count={:?}", count); 
     }
     v
 }
@@ -95,10 +94,6 @@ fn _minimax<T: Evaluator>(board: &mut Connect4, depth: u32, ismaximizing: bool, 
             value = value.max(_minimax(board, depth-1, false, evaluator));
             board.reverse_last_move();
         }
-        /*if old_board.board != board.board {
-            println!("{:?}{:?} depth={}", old_board, board, depth);
-            panic!("oh no");
-        }*/
         return value
     } else {
         let mut value: f64 = 1.0/0.0;
@@ -107,10 +102,6 @@ fn _minimax<T: Evaluator>(board: &mut Connect4, depth: u32, ismaximizing: bool, 
             value = value.min(_minimax(board, depth-1, true, evaluator));
             board.reverse_last_move();
         }
-        /*if old_board.board != board.board {
-            println!("{:?}{:?} depth={}", old_board, board, depth);
-            panic!("oh no");
-        }*/
         return value
     }
 }
@@ -157,6 +148,12 @@ pub fn abpruning_best_action<T: Evaluator>(
     let best_avs = avs.iter().filter(|(_,v)| *v==mx).collect::<Vec<&(Action,f64)>>();
     //println!("{:?}", avs);
     best_avs[fastrand::usize(0..best_avs.len())].0
+}
+
+pub fn abpruning_value<T: Evaluator>(
+    board: &Connect4, depth: u32, evaluator: &T) -> f64 {
+    let mut tt = TranspositionTable::new();
+    _abpruning(&mut board.clone(), -1./0., 1./0., depth, true, evaluator, &mut tt)
 }
 
 

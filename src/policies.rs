@@ -1,10 +1,12 @@
 
+use serde::{Serialize, Deserialize};
 
 pub trait Policy {
     // returns index of chosen value.
     fn choose(&self, action_values: Vec<f64>) -> usize;
 }
 
+#[derive(Serialize,Deserialize)]
 pub struct EpsilonGreedy {
     epsilon: f32,
 }
@@ -27,6 +29,7 @@ impl Policy for EpsilonGreedy {
     }   
 }
 
+#[derive(Serialize,Deserialize)]
 pub struct Greedy {}
 
 impl Greedy {

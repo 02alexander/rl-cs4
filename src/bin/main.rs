@@ -1,29 +1,46 @@
 //#![feature(test)]
 //extern crate test;
-extern crate fastrand;
 
+#[macro_use]
+extern crate serde;
+extern crate fastrand;
+extern crate serde_json;
 extern crate gamesolver;
 
 use gamesolver::connect4::{Connect4, Player, BOARD_HEIGHT, BOARD_WIDTH, GameState, Action};
-use gamesolver::evaluators::{Evaluator, SimpleEval, LinesEval, ConsequtiveEval, PropLinesEval};
-use gamesolver::search::{minimax_action, minimax, abpruning_action, abpruning_best_action};
+use gamesolver::evaluators::{Evaluator, SimpleEval, LinesEval, ConsequtiveEval};
+use gamesolver::search::{minimax_action, minimax, MinimaxAgent, abpruning_action, abpruning_best_action};
 use std::io::{self, BufRead};
 use gamesolver::matchmaker::{Agent, MatchMaker};
 use gamesolver::connect4;
+use gamesolver::qlearning::{FuncApprox, QLearning};
+use gamesolver::policies::{EpsilonGreedy, Greedy};
+use serde::{Serialize, Deserialize};
 
 fn main() {
+    let evaluator = ConsequtiveEval::new(Player::Red);
+    let policy = EpsilonGreedy::new(0.1);
+    let mut ai = QLearning::new(evaluator, policy, 0.0001);
+    ai.discount = 0.95;
+    ai.depth = 4;
+    for i in 0..201 {
+        if i%200 == 0 {
+            let agenta = MinimaxAgent::new(ai.get_evaluator().clone(), 4);
+            let refagent = MinimaxAgent::new(LinesEval::new(Player::Red), 4);
+            let mut mm = MatchMaker::new();
+            mm.add_agent(Box::new(agenta));
+            mm.add_agent(Box::new(refagent));
+            mm.play_n_games(100);
+            println!("{:?}", mm.scores());
+            println!("{:?}", ai.get_evaluator().params);
+        }
+        let opponent = MinimaxAgent::new(LinesEval::new(Player::Red), 4);
+        ai.play_against(&opponent, Player::Red);
+        //ai.self_play();
+    }
 
-    /*let mut agenta = MinimaxAgent::new(ConsequtiveEval::new(Player::Red), 4);
-    let mut agentb = MinimaxAgent::new(LinesEval::new(Player::Red), 4);
-    let mut mm = MatchMaker::new();
-    mm.add_agent(Box::new(agenta));
-    mm.add_agent(Box::new(agentb));
-    mm.play_n_games(300);
-    println!("{:?}", mm.get_scores());
-    */
-    
-    user_vs_ai();
-    //user_vs_user();
+    let serialized_ai = serde_json::to_string(&ai).unwrap();
+    std::fs::write("ai.json", serialized_ai).unwrap();
 }
 
 fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T) -> Action {

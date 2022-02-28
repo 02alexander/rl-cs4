@@ -1,6 +1,8 @@
 
 use crate::connect4::{Connect4, Player, GameState, TileStates};
+use crate::qlearning::FuncApprox;
 use crate::connect4;
+use serde::{Serialize, Deserialize};
 
 pub trait Evaluator {
     fn value(&self, board: &Connect4) -> f64;
@@ -50,6 +52,7 @@ fn pieces_in_row(board: &Connect4, pos: [usize;2], dir: [i32;2], player: Player)
     k as u32 - 1
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LinesEval {
     pub params: Vec<f64>,
     pub player: Player
@@ -143,10 +146,21 @@ impl LinesEval {
 }
 
 
-
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ConsequtiveEval {
     pub params: Vec<f64>,
     pub player: Player
+}
+
+impl FuncApprox for ConsequtiveEval {
+    fn apply_update(&mut self, change: Vec<f64>) {
+        for i in 0..change.len() {
+            self.params[i] += change[i];
+        }
+    }
+    fn gradient(&self, board: &Connect4) -> Vec<f64> {
+        self.features(board)
+    }
 }
 
 impl Evaluator for ConsequtiveEval {
@@ -154,7 +168,7 @@ impl Evaluator for ConsequtiveEval {
         //println!("ConsequtiveEval.value()");
         match board.game_state {
             GameState::Won(p) => {
-                if p == self.player {10000000.0} else {-10000000.0}
+                if p == self.player {1.0} else {-1.0}
                 //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
@@ -182,12 +196,12 @@ impl ConsequtiveEval {
 
     pub fn new(player: Player) -> Self {
         ConsequtiveEval {
-            params: vec![0.0, 10.0, 100.0, 0.0, 0.0, -20.0], // [v for 1 in a row,  v for 2 in a row, v for 3 in a row,    for opponent]
+            params: vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0], // [v for 1 in a row,  v for 2 in a row, v for 3 in a row,    for opponent]
             player,
         }
     }
 
-    fn features(&self, board: &Connect4) -> Vec<u32> {
+    fn features(&self, board: &Connect4) -> Vec<f64> {
         let directions = [[1,0], [1,1], [0,1], [-1, 1]];
         let mut f = vec![0;6];
         for x in 0..connect4::BOARD_WIDTH {
@@ -223,6 +237,8 @@ impl ConsequtiveEval {
                 }
             }
         }
-        f
+        let mx = 10.0;
+        f.iter().map(|x| mx*(1.0-(-x as f64/mx).exp())).collect()
+        //f.iter().map(|x| *x as f64).collect()
     }
 }
