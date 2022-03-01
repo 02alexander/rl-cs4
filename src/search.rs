@@ -14,25 +14,20 @@ const MULTIPLIER: usize = 7909;
 pub struct MinimaxAgent<'a> {
     evaluator: &'a dyn Evaluator,
     depth: u32,
-    player: Player,
 }
 
 impl<'a> MinimaxAgent<'a> {
-    pub fn new(evaluator: &'a dyn Evaluator, depth: u32, player: Player) -> Self {
+    pub fn new(evaluator: &'a dyn Evaluator, depth: u32) -> Self {
         MinimaxAgent {
             evaluator,
             depth,
-            player
         }
     }
 }
 
 impl<'a> Agent for MinimaxAgent<'a> {
-    fn get_action(&self, board: &Connect4) -> Action {
-        abpruning_best_action(board, self.depth, &*self.evaluator, self.player)
-    }
-    fn set_player(&mut self, player: Player) {
-        self.player = player;
+    fn get_action(&self, board: &Connect4, player: Player) -> Action {
+        abpruning_best_action(board, self.depth, &*self.evaluator, player)
     }
 }
 

@@ -8,6 +8,7 @@ pub trait Evaluator {
     fn value(&self, board: &Connect4, player: Player) -> f64;
     fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64>;
     fn apply_update(&mut self, change: Vec<f64>);
+    fn get_params(&self) -> Vec<f64>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -41,7 +42,9 @@ impl Evaluator for SimpleEval {
     fn apply_update(&mut self, change: Vec<f64>) {
         unimplemented!()
     }
-
+    fn get_params(&self) -> Vec<f64> {
+        unimplemented!()
+    }
 }
 
 fn pieces_in_row(board: &Connect4, pos: [usize;2], dir: [i32;2], player: Player) -> u32 {
@@ -64,7 +67,7 @@ impl Evaluator for LinesEval {
         //println!("LinesEval.value()");
         match board.game_state {
             GameState::Won(p) => {
-                if p == player {100000.0} else {-100000.0}
+                if p == player {1./0.} else {-1./0.}
                 //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
@@ -78,6 +81,9 @@ impl Evaluator for LinesEval {
     }
     fn apply_update(&mut self, change: Vec<f64>) {
         unimplemented!()
+    }
+    fn get_params(&self) -> Vec<f64> {
+        self.params.clone()
     }
 }
 
@@ -158,7 +164,7 @@ impl Evaluator for ConsequtiveEval {
         //println!("ConsequtiveEval.value()");
         match board.game_state {
             GameState::Won(p) => {
-                if p == player {1.0} else {-1.0}
+                if p == player {1./0.} else {-1./0.}
                 //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
@@ -181,6 +187,9 @@ impl Evaluator for ConsequtiveEval {
     }
     fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
         self.features(board, player)
+    }
+    fn get_params(&self) -> Vec<f64> {
+        self.params.clone()
     }
 }
 

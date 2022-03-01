@@ -1,17 +1,18 @@
 
 use crate::evaluators::{Evaluator, ConsequtiveEval, LinesEval};
-use crate::connect4::{Connect4, Player, N_ACTIONS, Action};
+use crate::connect4::{Connect4, Player, N_ACTIONS, Action, GameState};
 use crate::policies::Policy;
 use crate::matchmaker::{Agent, play_game};
 use crate::search::{abpruning_value};
 use crate::search::MinimaxAgent;
 use serde::{Serialize, Deserialize};
 
+#[typetag::serde(tag = "type")]
 pub trait RL {
     fn update(&mut self, game_hist: &Vec<Connect4>, player: Player);
     fn self_play(&mut self);
-    fn play_against<A: Agent>(&mut self, opponent: &A, opponent_player: Player);
-    fn get_evaluator(&self) -> &dyn Evaluator;
+    fn play_against(&mut self, opponent: &dyn Agent, opponent_player: Player);
+    fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator;
 }
 
 
@@ -23,7 +24,7 @@ pub struct QLearning {
     pub discount: f64,
     pub depth: u32, // depth to search during training.
 }
-/*
+
 pub struct PolicyMiniMaxAgent<P> {
     exploration_policy: P,
     depth: u32
@@ -39,10 +40,7 @@ impl<P: Policy> PolicyMiniMaxAgent<P> {
 }
 
 impl<P> Agent for PolicyMiniMaxAgent<P> {
-    fn set_player(&mut self, player: Player) {
-
-    }
-    fn get_action(&self, board: &Connect4) -> Action {
+    fn get_action(&self, board: &Connect4, player: Player) -> Action {
         unimplemented!()
     }
 }
@@ -59,6 +57,7 @@ impl QLearning {
     }
 }
 
+#[typetag::serde]
 impl RL for QLearning {
     
     fn update(&mut self, game_hist: &Vec<Connect4>, player: Player) {
@@ -70,12 +69,27 @@ impl RL for QLearning {
             }
         }
         for i in 0..(states.len()-1) {
-            let grad = self.evaluator.gradient(&states[i]);
+            let grad = self.evaluator.gradient(&states[i], player);
             
-            let mut next_state = states[i+1].clone();
+            let next_state = &states[i+1];
             let actions = next_state.valid_moves();
             let target_av = if i == states.len()-2 {
-                self.evaluator.value(&next_state)
+                match game_hist.last().unwrap().game_state {
+                    GameState::Won(p) => {
+                        if p == player {
+                            1.0
+                        } else {
+                            -1.0
+                        }
+                    },
+                    GameState::Draw => {
+                        0.0
+                    },
+                    GameState::InProgress => {
+                        panic!("last state is in progress")
+                    }
+                }
+                //self.evaluator.value(&next_state, player)
             } else {
                 /*let mut max_av = -1.0/0.;
                 for action in actions {
@@ -88,39 +102,61 @@ impl RL for QLearning {
                 }
                 max_av
                 */
-                abpruning_value(&next_state, self.depth, &*self.evaluator)
+                let v = abpruning_value(&next_state, self.depth, &*self.evaluator, player);
+                if v == 1./0. {
+                    1.0
+                } else if v == -1./0. {
+                    -1.0
+                } else {
+                    v
+                }
             };
-            //println!("{:.5}", target_av);
-            let current_av = self.evaluator.value(&states[i]);
+            let current_av = self.evaluator.value(&states[i], player);
+            let current_av = if current_av == 1./0. {
+                1.0
+            } else if current_av == -1./0. {
+                -1.0
+            } else {
+                current_av
+            };
             let deltas = grad.iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
             self.evaluator.apply_update(deltas);
         }
     }
 
     fn self_play(&mut self) {
-        let mut agenta = MinimaxAgent::new((*self.evaluator).clone(), self.depth);
-        agenta.set_player(Player::Red);
-        let mut agentb = MinimaxAgent::new(*self.evaluator.clone(), self.depth);
-        agentb.set_player(Player::Yellow);
+        let mut agenta = MinimaxAgent::new(&*self.evaluator, self.depth);
+        //agenta.set_player(Player::Red);
+        let mut agentb = MinimaxAgent::new(&*self.evaluator, self.depth);
+        //agentb.set_player(Player::Yellow);
         let game_hist = play_game(&agenta, &agentb);
         self.update(&game_hist, Player::Red);
         self.update(&game_hist, Player::Yellow);
     }
 
-    fn play_against<A: Agent>(&mut self, opponent: &A, opponent_player: Player) {
-        let mut agent = MinimaxAgent::new(self.evaluator.clone(), self.depth);
-        agent.set_player(!opponent_player);
+    fn play_against(&mut self, opponent: &dyn Agent, opponent_player: Player) {
+        let agent = MinimaxAgent::new(&*self.evaluator, self.depth);
+        let mut p = Player::Red;
         let game_hist = if fastrand::bool() {
+            p = Player::Red;
             play_game(&agent, opponent)
         } else {
+            p = Player::Yellow;
             play_game(opponent, &agent)
         };
+        let end_state = game_hist.last().unwrap();
+        if let GameState::Won(pl) = end_state.game_state {
+            if pl == p {
+                //println!("won");
+            } else {
+                //println!("lost");
+            }
+        }
         self.update(&game_hist, !opponent_player);
     }
 
-    fn get_evaluator(&self) -> &dyn Evaluator {
+    fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator {
         &*self.evaluator
     }
 }
 
-*/

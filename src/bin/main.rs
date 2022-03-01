@@ -48,33 +48,46 @@ enum Commands {
 fn main() {
     //let cli = Cli::parse();
 
-    /*let evaluator = ConsequtiveEval::new(Player::Red);
+    /*let evaluator = ConsequtiveEval::new();
     let policy = EpsilonGreedy::new(0.1);
     let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
     ai.discount = 0.95;
     ai.depth = 4;
-    for i in 0..201 {
+    let mut ai: Box<dyn RL> = Box::new(ai);
+    */
+    
+
+    let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
+    let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
+
+    for i in 0..2001 {
+        //let lineeval = LinesEval::new();
+        //let opponent = MinimaxAgent::new(&lineeval, 4);
+        //ai.play_against(&opponent, Player::Red);
+        ai.self_play();
+
         if i%200 == 0 {
-            let agenta = MinimaxAgent::new(ai.get_evaluator().clone(), 4);
-            let refagent = MinimaxAgent::new(Box::new(LinesEval::new(Player::Red)), 4);
+            let lineval = LinesEval::new();
+            let agenta = MinimaxAgent::new(ai.get_evaluator(), 4);
+            let refagent = MinimaxAgent::new(&lineval, 4);
             let mut mm = MatchMaker::new();
-            mm.add_agent(Box::new(agenta));
-            mm.add_agent(Box::new(refagent));
+            mm.add_agent(&agenta);
+            mm.add_agent(&refagent);
             mm.play_n_games(100);
             println!("{:?}", mm.scores());
-            println!("{:?}", ai.get_evaluator().params);
+            println!("{:?}", ai.get_evaluator().get_params());
         }
-        let opponent = MinimaxAgent::new(Box::new(LinesEval::new(Player::Red)), 4);
-        ai.play_against(&opponent, Player::Red);
         //ai.self_play();
     }
 
     let serialized_ai = serde_json::to_string(&ai).unwrap();
-    //std::fs::write("ai.json", serialized_ai).unwrap();
-    //let deserialized_ai = serde_json::from_str(&serialized_ai);
+    std::fs::write("ai.json", &serialized_ai).unwrap();
+
+    // let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
+    // let deserialized_ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
     
-    */
-    user_vs_ai();
+
+    //user_vs_ai();
 }
 
 fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T, player: Player) -> Action {

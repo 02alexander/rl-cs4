@@ -3,18 +3,17 @@ use crate::connect4::{Connect4, Player, Action, GameState, TileStates};
 use crate::connect4;
 
 pub trait Agent {
-    fn get_action(&self, board: &Connect4) -> Action;
-    fn set_player(&mut self, player: Player);
+    fn get_action(&self, board: &Connect4, player: Player) -> Action;
 }
 
 
-pub struct MatchMaker {
-    agents: Vec<Box<dyn Agent>>,
+pub struct MatchMaker<'a> {
+    agents: Vec<&'a dyn Agent>,
     hist: Vec<(usize, usize, GameState)>, // (idx of red agent, idx of yellow agent, result)
     last_game: Vec<Action>,
 }
 
-impl MatchMaker {
+impl<'a> MatchMaker<'a> {
     pub fn new() -> Self {
         MatchMaker {
             agents: Vec::new(),
@@ -23,10 +22,10 @@ impl MatchMaker {
         }
     }
 
-    pub fn add_agent(&mut self, agent: Box<dyn Agent>) {
+    pub fn add_agent(&mut self, agent: &'a dyn Agent) {
         self.agents.push(agent);
     }
-    pub fn update_agent(&mut self, index: usize, new_agent: Box<dyn Agent>) {
+    pub fn update_agent(&mut self, index: usize, new_agent: &'a dyn Agent) {
         self.agents[index] = new_agent
     }
 
@@ -40,8 +39,6 @@ impl MatchMaker {
             } else {
                 [1,0]
             };
-            self.agents[idxagents[0]].set_player(Player::Red);
-            self.agents[idxagents[1]].set_player(Player::Yellow);
             let mut end_board = play_game(&*self.agents[idxagents[0]], &*self.agents[idxagents[1]]);
             
             self.hist.push((idxagents[0], idxagents[1], end_board.last().unwrap().game_state));
@@ -150,8 +147,7 @@ fn movmean(v: &Vec<f64>, n: usize) -> Vec<f64> {
     avgs
 }
 
-// plays game but doesn't record it.
-// returns the board after every move.
+// returns the board after every move. which means that it excludes starting position but includes end position.
 pub fn play_game(p1: &dyn Agent, p2: &dyn Agent) -> Vec<Connect4> {
     let mut boards = Vec::new();
     let mut board = Connect4::new();
@@ -160,9 +156,9 @@ pub fn play_game(p1: &dyn Agent, p2: &dyn Agent) -> Vec<Connect4> {
     board.cur_player = Player::Red;
     while board.game_state == GameState::InProgress {
         let action = if b {
-            p1.get_action(&board)
+            p1.get_action(&board, board.cur_player)
         } else {
-            p2.get_action(&board)
+            p2.get_action(&board, board.cur_player)
         };
         board.play_move(action);
         b = !b;
