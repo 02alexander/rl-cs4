@@ -12,9 +12,10 @@ fn consecutive_eval_benchmark(c: &mut Criterion) {
     for action in actions {
         board.play_move(action);
     }
-    let evaluator = ConsequtiveEval::new(board.cur_player);
+    let p = board.cur_player;
+    let evaluator = ConsequtiveEval::new();
     c.bench_function("ConsecutiveEval, depth=5", |b| b.iter(||{
-        black_box(abpruning_action_values(&mut board, 4, &evaluator))
+        black_box(abpruning_action_values(&mut board, 4, &evaluator, p))
     }));
 }
 
@@ -24,9 +25,10 @@ fn lines_eval_benchmark(c: &mut Criterion) {
     for action in actions {
         board.play_move(action);
     }
-    let evaluator = LinesEval::new(board.cur_player);
+    let p = board.cur_player;
+    let evaluator = LinesEval::new();
     c.bench_function("LinesEval, depth=5", |b| b.iter(||{
-        black_box(abpruning_action_values(&mut board, 4, &evaluator))
+        black_box(abpruning_action_values(&mut board, 4, &evaluator, p))
     }));
 }
 
@@ -36,9 +38,10 @@ fn search_benchmark(c: &mut Criterion) {
     for action in actions {
         board.play_move(action);
     }
-    let evaluator = SimpleEval::new(board.cur_player);
-    c.bench_function("LinesEval, depth=9", |b| b.iter(||{
-        black_box(abpruning_action_values(&mut board, 9, &evaluator))
+    let p = board.cur_player;
+    let evaluator = SimpleEval::new();
+    c.bench_function("SimpleEval, depth=9", |b| b.iter(||{
+        black_box(abpruning_action_values(&mut board, 9, &evaluator, p))
     }));
 }
 

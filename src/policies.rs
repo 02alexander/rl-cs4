@@ -1,6 +1,7 @@
 
 use serde::{Serialize, Deserialize};
 
+#[typetag::serde(tag = "type")]
 pub trait Policy {
     // returns index of chosen value.
     fn choose(&self, action_values: Vec<f64>) -> usize;
@@ -19,6 +20,7 @@ impl EpsilonGreedy {
     }
 }
 
+#[typetag::serde]
 impl Policy for EpsilonGreedy {
     fn choose(&self, action_values: Vec<f64>) -> usize {
         if fastrand::f32() < self.epsilon {
@@ -38,6 +40,7 @@ impl Greedy {
     }
 }
 
+#[typetag::serde]
 impl Policy for Greedy {
     fn choose(&self, action_values: Vec<f64>) -> usize {
         action_values.iter().enumerate().max_by(|(_,v1),(_,v2)| v1.partial_cmp(v2).unwrap()).unwrap().0

@@ -1,32 +1,33 @@
 
 use crate::connect4::{Connect4, Player, GameState, TileStates};
-use crate::qlearning::FuncApprox;
 use crate::connect4;
 use serde::{Serialize, Deserialize};
 
+#[typetag::serde(tag = "type")]
 pub trait Evaluator {
-    fn value(&self, board: &Connect4) -> f64;
-    fn set_player(&mut self, player: Player);
-    fn get_player(&self) -> Player;
+    fn value(&self, board: &Connect4, player: Player) -> f64;
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64>;
+    fn apply_update(&mut self, change: Vec<f64>);
 }
 
-#[derive(Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct SimpleEval {
-    player: Player
 }
+
 
 impl SimpleEval {
-    pub fn new(player: Player) -> SimpleEval {
-        SimpleEval {player}
+    pub fn new() -> SimpleEval {
+        SimpleEval {}
     }
 }
 
+#[typetag::serde]
 impl Evaluator for SimpleEval {
-    fn value(&self, board: &Connect4) -> f64 {
+    fn value(&self, board: &Connect4, player: Player) -> f64 {
         match board.game_state {
             GameState::Won(p) => {
                 //if p == self.player {1./0.} else {-1./0.}
-                if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
+                if p == player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {
@@ -34,13 +35,13 @@ impl Evaluator for SimpleEval {
             },
         }
     }
-    fn set_player(&mut self, player: Player) {
-        self.player = player
-    
-    } 
-    fn get_player(&self) -> Player {
-        self.player
-    } 
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+        unimplemented!()
+    }
+    fn apply_update(&mut self, change: Vec<f64>) {
+        unimplemented!()
+    }
+
 }
 
 fn pieces_in_row(board: &Connect4, pos: [usize;2], dir: [i32;2], player: Player) -> u32 {
@@ -55,41 +56,40 @@ fn pieces_in_row(board: &Connect4, pos: [usize;2], dir: [i32;2], player: Player)
 #[derive(Clone, Serialize, Deserialize)]
 pub struct LinesEval {
     pub params: Vec<f64>,
-    pub player: Player
 }
 
+#[typetag::serde]
 impl Evaluator for LinesEval {
-    fn value(&self, board: &Connect4) -> f64 {
+    fn value(&self, board: &Connect4, player: Player) -> f64 {
         //println!("LinesEval.value()");
         match board.game_state {
             GameState::Won(p) => {
-                if p == self.player {100000.0} else {-100000.0}
+                if p == player {100000.0} else {-100000.0}
                 //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {
-                self.lines_evaluation(board)
+                self.lines_evaluation(board, player)
             },
         }
     }
-    fn set_player(&mut self, player: Player) {
-        self.player = player
-    } 
-    fn get_player(&self) -> Player {
-        self.player
-    } 
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+        unimplemented!()
+    }
+    fn apply_update(&mut self, change: Vec<f64>) {
+        unimplemented!()
+    }
 }
 
 impl LinesEval {
 
-    pub fn new(player: Player) -> LinesEval {
+    pub fn new() -> LinesEval {
         LinesEval {
             params: vec![0.0, 0.0], // [ v for 2 in a row, v for 3 in a row]
-            player,
         }
     }
 
-    fn lines_evaluation(&self, board: &Connect4) -> f64 {
+    fn lines_evaluation(&self, board: &Connect4, player: Player) -> f64 {
         let mut total = 0.0;
         let directions = [[1, 0],[0, 1], [1,1]];
         //iterates over the first row and the first column.
@@ -110,13 +110,13 @@ impl LinesEval {
                     k += 1;
                 }
                 //println!("line={:?}", line);
-                total += self.line_value(&line);
+                total += self.line_value(&line, player);
             }
         }
         total
     }
 
-    fn line_value(&self, v: &Vec<TileStates>) -> f64 {
+    fn line_value(&self, v: &Vec<TileStates>, player: Player) -> f64 {
         let mut last_opponent: i32 = -1;
         let mut count: u32 = 0;
         let mut totv = 0.0;
@@ -127,7 +127,7 @@ impl LinesEval {
                     
                 },
                 TileStates::Full(p) => {
-                    if p != self.player {
+                    if p != player {
                         last_opponent = i as i32;
                         count = 0;
                     } else {
@@ -149,32 +149,22 @@ impl LinesEval {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ConsequtiveEval {
     pub params: Vec<f64>,
-    pub player: Player
 }
 
-impl FuncApprox for ConsequtiveEval {
-    fn apply_update(&mut self, change: Vec<f64>) {
-        for i in 0..change.len() {
-            self.params[i] += change[i];
-        }
-    }
-    fn gradient(&self, board: &Connect4) -> Vec<f64> {
-        self.features(board)
-    }
-}
 
+#[typetag::serde]
 impl Evaluator for ConsequtiveEval {
-    fn value(&self, board: &Connect4) -> f64 {
+    fn value(&self, board: &Connect4, player: Player) -> f64 {
         //println!("ConsequtiveEval.value()");
         match board.game_state {
             GameState::Won(p) => {
-                if p == self.player {1.0} else {-1.0}
+                if p == player {1.0} else {-1.0}
                 //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {
                 //self.lines_evaluation(board)
-                let features = self.features(board);
+                let features = self.features(board, player);
                 let mut tot = 0.0;
                 for (f, v) in features.iter().zip(self.params.iter()) {
                     tot += *f as f64*v;
@@ -184,24 +174,25 @@ impl Evaluator for ConsequtiveEval {
             },
         }
     }
-    fn set_player(&mut self, player: Player) {
-        self.player = player
-    } 
-    fn get_player(&self) -> Player {
-        self.player
-    } 
+    fn apply_update(&mut self, change: Vec<f64>) {
+        for i in 0..change.len() {
+            self.params[i] += change[i];
+        }
+    }
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+        self.features(board, player)
+    }
 }
 
 impl ConsequtiveEval {
 
-    pub fn new(player: Player) -> Self {
+    pub fn new() -> Self {
         ConsequtiveEval {
             params: vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0], // [v for 1 in a row,  v for 2 in a row, v for 3 in a row,    for opponent]
-            player,
         }
     }
 
-    fn features(&self, board: &Connect4) -> Vec<f64> {
+    fn features(&self, board: &Connect4, player: Player) -> Vec<f64> {
         let directions = [[1,0], [1,1], [0,1], [-1, 1]];
         let mut f = vec![0;6];
         for x in 0..connect4::BOARD_WIDTH {
@@ -210,8 +201,8 @@ impl ConsequtiveEval {
                     continue
                 }
                 for dir in directions {
-                    let a = pieces_in_row(board, [x,y], dir, self.player);
-                    let b = pieces_in_row(board, [x,y], [-dir[0], -dir[1]], self.player);
+                    let a = pieces_in_row(board, [x,y], dir, player);
+                    let b = pieces_in_row(board, [x,y], [-dir[0], -dir[1]], player);
                     let l = 3.min(a+b);
                     /*if l == 3 {
                         println!("{:?} {:?}, {}, {}", [x,y], dir, a,b);
@@ -228,8 +219,8 @@ impl ConsequtiveEval {
                     continue
                 }
                 for dir in directions {
-                    let a = pieces_in_row(board, [x,y], dir, !self.player);
-                    let b = pieces_in_row(board, [x,y], [-dir[0], -dir[1]], !self.player);
+                    let a = pieces_in_row(board, [x,y], dir, !player);
+                    let b = pieces_in_row(board, [x,y], [-dir[0], -dir[1]], !player);
                     let l = 3.min(a+b);
                     if l >= 1 {
                         f[l as usize-1+3] += 1;

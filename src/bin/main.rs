@@ -1,8 +1,9 @@
 //#![feature(test)]
 //extern crate test;
 
-#[macro_use]
+
 extern crate serde;
+extern crate clap;
 extern crate fastrand;
 extern crate serde_json;
 extern crate gamesolver;
@@ -13,20 +14,49 @@ use gamesolver::search::{minimax_action, minimax, MinimaxAgent, abpruning_action
 use std::io::{self, BufRead};
 use gamesolver::matchmaker::{Agent, MatchMaker};
 use gamesolver::connect4;
-use gamesolver::qlearning::{FuncApprox, QLearning};
+use gamesolver::qlearning::{QLearning, RL};
 use gamesolver::policies::{EpsilonGreedy, Greedy};
 use serde::{Serialize, Deserialize};
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[clap(author, version, about, long_about=None)]
+struct Cli {
+    #[clap(subcommand)]
+    command: Commands
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Adds files to myapp
+    Create {
+        file: String,
+    },
+    Train { 
+        iterations: u32
+    },
+    Play {
+        ai_file: String
+    },
+    Compare {
+        ai_file1: String,
+        ai_file2: String,
+    }
+}
+
 
 fn main() {
-    let evaluator = ConsequtiveEval::new(Player::Red);
+    //let cli = Cli::parse();
+
+    /*let evaluator = ConsequtiveEval::new(Player::Red);
     let policy = EpsilonGreedy::new(0.1);
-    let mut ai = QLearning::new(evaluator, policy, 0.0001);
+    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
     ai.discount = 0.95;
     ai.depth = 4;
     for i in 0..201 {
         if i%200 == 0 {
             let agenta = MinimaxAgent::new(ai.get_evaluator().clone(), 4);
-            let refagent = MinimaxAgent::new(LinesEval::new(Player::Red), 4);
+            let refagent = MinimaxAgent::new(Box::new(LinesEval::new(Player::Red)), 4);
             let mut mm = MatchMaker::new();
             mm.add_agent(Box::new(agenta));
             mm.add_agent(Box::new(refagent));
@@ -34,17 +64,21 @@ fn main() {
             println!("{:?}", mm.scores());
             println!("{:?}", ai.get_evaluator().params);
         }
-        let opponent = MinimaxAgent::new(LinesEval::new(Player::Red), 4);
+        let opponent = MinimaxAgent::new(Box::new(LinesEval::new(Player::Red)), 4);
         ai.play_against(&opponent, Player::Red);
         //ai.self_play();
     }
 
     let serialized_ai = serde_json::to_string(&ai).unwrap();
-    std::fs::write("ai.json", serialized_ai).unwrap();
+    //std::fs::write("ai.json", serialized_ai).unwrap();
+    //let deserialized_ai = serde_json::from_str(&serialized_ai);
+    
+    */
+    user_vs_ai();
 }
 
-fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T) -> Action {
-    abpruning_best_action(board, 8, evaluator)
+fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T, player: Player) -> Action {
+    abpruning_best_action(board, 8, evaluator, player)
 }
 
 // returns (action, is_reverse)
@@ -73,7 +107,7 @@ fn get_move_from_user(board: &Connect4) -> (Action, bool) {
 
 fn user_vs_user() {
     let mut board = Connect4::new();
-    let evaluator = SimpleEval::new(!board.cur_player);
+    let evaluator = SimpleEval::new();
     loop {
         println!("{:?}", board);
         println!("{:?}", board.game_state);
@@ -97,14 +131,15 @@ fn user_vs_user() {
 
 fn user_vs_ai() {
     let mut board = Connect4::new();
-    let levaluator = ConsequtiveEval::new(board.cur_player);
+    let p = board.cur_player;
+    let levaluator = ConsequtiveEval::new();
     //let evaluator = SimpleEval::new(!board.cur_player);
-    let evaluator = SimpleEval::new(!board.cur_player);
+    let evaluator = SimpleEval::new();
     loop {
         println!("{:?}", board.actions);
         println!("{:?}", board);
         println!("{:?}", board.game_state);
-        println!("{:?}", levaluator.value(&board));
+        println!("{:?}", levaluator.value(&board, !p));
         let (action, reverse) = get_move_from_user(&board);
         if reverse {
             board.reverse_last_move();
@@ -122,7 +157,7 @@ fn user_vs_ai() {
                 }
             }
         }
-        let action = get_move_from_minimax(&board, &evaluator);
+        let action = get_move_from_minimax(&board, &evaluator, !p);
         board.play_move(action);
         match board.game_state {
             GameState::Draw => {

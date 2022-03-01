@@ -7,20 +7,23 @@ use crate::search::{abpruning_value};
 use crate::search::MinimaxAgent;
 use serde::{Serialize, Deserialize};
 
-pub trait FuncApprox: Evaluator {
-    fn gradient(&self, board: &Connect4) -> Vec<f64>;
-    fn apply_update(&mut self, change: Vec<f64>);
-} 
+pub trait RL {
+    fn update(&mut self, game_hist: &Vec<Connect4>, player: Player);
+    fn self_play(&mut self);
+    fn play_against<A: Agent>(&mut self, opponent: &A, opponent_player: Player);
+    fn get_evaluator(&self) -> &dyn Evaluator;
+}
+
 
 #[derive(Serialize, Deserialize)]
-pub struct QLearning<T, P> {
-    evaluator: T,
-    exploration_policy: P, // exploration policy
+pub struct QLearning {
+    evaluator: Box<dyn Evaluator>,
+    exploration_policy: Box<dyn Policy>, // exploration policy
     step_size: f64,
     pub discount: f64,
     pub depth: u32, // depth to search during training.
 }
-
+/*
 pub struct PolicyMiniMaxAgent<P> {
     exploration_policy: P,
     depth: u32
@@ -44,8 +47,8 @@ impl<P> Agent for PolicyMiniMaxAgent<P> {
     }
 }
 
-impl<T: FuncApprox+Clone, P: Policy> QLearning<T, P> {
-    pub fn new(evaluator: T, exploration_policy: P, step_size: f64) -> QLearning<T, P> {
+impl QLearning { 
+    pub fn new(evaluator: Box<dyn Evaluator>, exploration_policy: Box<dyn Policy>, step_size: f64) -> QLearning {
         QLearning {
             evaluator,
             exploration_policy,
@@ -54,8 +57,11 @@ impl<T: FuncApprox+Clone, P: Policy> QLearning<T, P> {
             depth: 4,
         }
     }
+}
 
-    pub fn update(&mut self, game_hist: &Vec<Connect4>, player: Player) {
+impl RL for QLearning {
+    
+    fn update(&mut self, game_hist: &Vec<Connect4>, player: Player) {
 
         let mut states = Vec::with_capacity(game_hist.len()/2+1);
         for board in game_hist {
@@ -82,7 +88,7 @@ impl<T: FuncApprox+Clone, P: Policy> QLearning<T, P> {
                 }
                 max_av
                 */
-                abpruning_value(&next_state, self.depth, &self.evaluator)
+                abpruning_value(&next_state, self.depth, &*self.evaluator)
             };
             //println!("{:.5}", target_av);
             let current_av = self.evaluator.value(&states[i]);
@@ -91,17 +97,17 @@ impl<T: FuncApprox+Clone, P: Policy> QLearning<T, P> {
         }
     }
 
-    pub fn self_play(&mut self) {
-        let mut agenta = MinimaxAgent::new(self.evaluator.clone(), self.depth);
+    fn self_play(&mut self) {
+        let mut agenta = MinimaxAgent::new((*self.evaluator).clone(), self.depth);
         agenta.set_player(Player::Red);
-        let mut agentb = MinimaxAgent::new(self.evaluator.clone(), self.depth);
+        let mut agentb = MinimaxAgent::new(*self.evaluator.clone(), self.depth);
         agentb.set_player(Player::Yellow);
         let game_hist = play_game(&agenta, &agentb);
         self.update(&game_hist, Player::Red);
         self.update(&game_hist, Player::Yellow);
     }
 
-    pub fn play_against<A: Agent>(&mut self, opponent: &A, opponent_player: Player) {
+    fn play_against<A: Agent>(&mut self, opponent: &A, opponent_player: Player) {
         let mut agent = MinimaxAgent::new(self.evaluator.clone(), self.depth);
         agent.set_player(!opponent_player);
         let game_hist = if fastrand::bool() {
@@ -112,8 +118,9 @@ impl<T: FuncApprox+Clone, P: Policy> QLearning<T, P> {
         self.update(&game_hist, !opponent_player);
     }
 
-    pub fn get_evaluator(&self) -> &T {
-        &self.evaluator
+    fn get_evaluator(&self) -> &dyn Evaluator {
+        &*self.evaluator
     }
 }
 
+*/
