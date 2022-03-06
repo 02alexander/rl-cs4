@@ -69,7 +69,7 @@ impl RL for QLearning {
             }
         }
         for i in 0..(states.len()-1) {
-            let grad = self.evaluator.gradient(&states[i], player);
+            //let grad = self.evaluator.gradient(&states[i], player);
             
             let next_state = &states[i+1];
             let actions = next_state.valid_moves();
@@ -111,16 +111,13 @@ impl RL for QLearning {
                     v
                 }
             };
-            let current_av = self.evaluator.value(&states[i], player);
-            let current_av = if current_av == 1./0. {
-                1.0
-            } else if current_av == -1./0. {
-                -1.0
-            } else {
-                current_av
-            };
-            let deltas = grad.iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
-            self.evaluator.apply_update(deltas);
+            
+            /*let current_av = self.evaluator.value(&states[i], player);
+            */
+
+            //let deltas = grad.iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
+            //self.evaluator.apply_update(deltas);
+            self.evaluator.update(&states[i], player, self.discount*target_av, self.step_size);
         }
     }
 

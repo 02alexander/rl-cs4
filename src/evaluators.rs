@@ -1,13 +1,21 @@
 
 use crate::connect4::{Connect4, Player, GameState, TileStates};
 use crate::connect4;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::de::{self, Visitor};
+use anyhow::Result;
+use tch::nn::{Adam, ModuleT, OptimizerConfig, VarStore};
+use tch::vision::dataset::Dataset;
+use tch::TrainableCModule;
+use tch::{CModule, Device};
+use std::fmt;
 
 #[typetag::serde(tag = "type")]
 pub trait Evaluator {
     fn value(&self, board: &Connect4, player: Player) -> f64;
-    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64>;
-    fn apply_update(&mut self, change: Vec<f64>);
+    //fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64>;
+    //fn apply_update(&mut self, change: Vec<f64>);
+    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64);
     fn get_params(&self) -> Vec<f64>;
 }
 
@@ -36,10 +44,13 @@ impl Evaluator for SimpleEval {
             },
         }
     }
-    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+    /*fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
         unimplemented!()
     }
     fn apply_update(&mut self, change: Vec<f64>) {
+        unimplemented!()
+    }*/
+    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
         unimplemented!()
     }
     fn get_params(&self) -> Vec<f64> {
@@ -76,10 +87,13 @@ impl Evaluator for LinesEval {
             },
         }
     }
-    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+    /*fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
         unimplemented!()
     }
     fn apply_update(&mut self, change: Vec<f64>) {
+        unimplemented!()
+    }*/
+    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
         unimplemented!()
     }
     fn get_params(&self) -> Vec<f64> {
@@ -157,7 +171,6 @@ pub struct ConsequtiveEval {
     pub params: Vec<f64>,
 }
 
-
 #[typetag::serde]
 impl Evaluator for ConsequtiveEval {
     fn value(&self, board: &Connect4, player: Player) -> f64 {
@@ -180,13 +193,24 @@ impl Evaluator for ConsequtiveEval {
             },
         }
     }
-    fn apply_update(&mut self, change: Vec<f64>) {
+    /*fn apply_update(&mut self, change: Vec<f64>) {
         for i in 0..change.len() {
             self.params[i] += change[i];
         }
     }
     fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
         self.features(board, player)
+    }*/
+    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
+        let features = self.features(board, player);
+        let mut av = 0.0;
+        for (f, v) in features.iter().zip(self.params.iter()) {
+            av += *f as f64*v;
+        } 
+        let deltas: Vec<f64> = features.iter().map(|g| g*(target_av-av)*learning_rate).collect();
+        for i in 0..deltas.len() {
+            self.params[i] += deltas[i];
+        }
     }
     fn get_params(&self) -> Vec<f64> {
         self.params.clone()
@@ -240,5 +264,185 @@ impl ConsequtiveEval {
         let mx = 10.0;
         f.iter().map(|x| mx*(1.0-(-x as f64/mx).exp())).collect()
         //f.iter().map(|x| *x as f64).collect()
+    }
+}
+
+
+/*
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CNNEval {
+    
+}
+
+#[typetag::serde]
+impl Evaluator for CNNEval {
+    fn value(&self, board: &Connect4, player: Player) -> f64 {
+        //println!("ConsequtiveEval.value()");
+        match board.game_state {
+            GameState::Won(p) => {
+                if p == player {1./0.} else {-1./0.}
+                //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
+            },
+            GameState::Draw => 0.0,
+            GameState::InProgress => {
+                let r: PyResult<f64> = Python::with_gil(|py| {
+                    let ceval = PyModule::from_code(py, r#"
+ceval
+                    "#, "", "").unwrap();
+                    
+                    Ok(2.0)
+                });
+                r.unwrap()
+            },
+        }
+    }
+    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
+        Python::with_gil(|py| {
+            let ceval = PyModule::from_code(py, "
+            ", "", "").unwrap();
+        });
+    }
+    fn get_params(&self) -> Vec<f64> {
+        unimplemented!()
+    }
+}
+
+impl CNNEval {
+    pub fn new() -> Self {
+        Python::with_gil(|py| {
+            py.run(r#"
+import cnneval
+ceval = CNNEval()
+def update(state, target_av, learning_rate):
+    global ceval
+    ceval.update(state, target_av, learning_rate)
+            "#, None, None).unwrap();  
+        });
+        CNNEval {
+            
+        }
+    }
+}*/
+
+
+pub struct CNNEval {
+    pub model_path: String,
+    pub model: TrainableCModule,
+    pub vs: VarStore,
+}
+
+impl CNNEval {
+    pub fn new(model_path: String) -> Self {
+        let device = Device::Cpu;
+        let vs = VarStore::new(device);
+        let model = TrainableCModule::load(&model_path, vs.root()).unwrap();
+        let opt = tch::nn::sgd(0.0, 0.0, 0.0, false);
+        CNNEval {
+            model_path,
+            model,
+            vs,
+        }
+    }
+}
+
+impl Serialize for CNNEval {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+        where S: Serializer {
+        self.model.save(&self.model_path).unwrap();
+        println!("serialize called");
+        serializer.serialize_str(&self.model_path)
+
+    }
+}
+
+impl<'de> Deserialize<'de> for CNNEval {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+        deserializer.deserialize_string(ModelPathVisitor)
+    }
+}
+
+struct ModelPathVisitor;
+impl<'de> Visitor<'de> for ModelPathVisitor {
+    type Value = CNNEval;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string to the model")
+    }
+
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E> where E: de::Error {
+        let device = Device::Cpu;
+        let vs = VarStore::new(device);
+        let model_path = String::from(s);
+        let model = TrainableCModule::load(&model_path, vs.root()).expect(&format!("couldn't load module from file {}", &model_path));
+        Ok(CNNEval {
+            model_path,
+            model,
+            vs,
+        })
+    }
+}
+
+#[typetag::serde]
+impl Evaluator for CNNEval {
+    fn value(&self, board: &Connect4, player: Player) -> f64 {
+        match board.game_state {
+            GameState::Won(p) => {
+                if p == player {1./0.} else {-1./0.}
+                //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
+            },
+            GameState::Draw => 0.0,
+            GameState::InProgress => {
+                let vectorized_board = board.vectorize(player);
+                let tensor = unsafe {
+                    let ptr = vectorized_board.as_ptr();
+                    let t = tch::Tensor::of_blob(
+                        (ptr as *const u8), 
+                        &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+                        &[0, 0, connect4::BOARD_WIDTH as i64, 1],
+                        tch::Kind::Double,
+                        tch::Device::Cpu,
+                    );
+                    t
+                };
+                let v = self.model.forward_t(&tensor, true);
+                let data_ptr = v.data_ptr();
+                unsafe {
+                    *(data_ptr as *const f64)
+                }
+            },
+        }
+    }
+    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
+        let mut optimizer = tch::nn::Sgd::default().build(&self.vs, learning_rate).unwrap();
+        self.model.set_train();
+        let vectorized_board = board.vectorize(player);
+        let tensor = unsafe {
+            let ptr = vectorized_board.as_ptr();
+            let t = tch::Tensor::of_blob(
+                (ptr as *const u8), 
+                &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+                &[0, 0, connect4::BOARD_WIDTH as i64, 1],
+                tch::Kind::Double,
+                tch::Device::Cpu,
+            );
+            t
+        };
+        let out = self.model.forward_t(&tensor, true);
+        let targetv = vec![target_av];
+        let target = unsafe {
+            let ptr = targetv.as_ptr();
+            tch::Tensor::of_blob(
+                (ptr as *const u8), 
+                &[1], 
+                &[0],
+                tch::Kind::Double,
+                tch::Device::Cpu,
+            )
+        };
+        let loss = out.mse_loss(&target, tch::Reduction::Mean);
+        optimizer.backward_step(&loss);
+    }
+    fn get_params(&self) -> Vec<f64> {
+        unimplemented!()
     }
 }

@@ -179,16 +179,25 @@ impl Connect4 {
 
     pub fn vectorize(&self, player: Player) -> Vec<f64> {
         let mut v = Vec::with_capacity(BOARD_WIDTH*BOARD_HEIGHT);
-        
+        let mut board = self.board;
         for x in 0..BOARD_WIDTH {
             for y in 0..BOARD_HEIGHT {
-                if self.get(x,y) == player as u8 {
+                let cur = board as u8 & 3;
+                if cur == player as u8 {
+                    v.push(1.0);
+                } else if cur == !player as u8 {
+                    v.push(-1.0);
+                } else {
+                    v.push(0.0);
+                }
+                board >>= 2;
+                /*if self.get(x,y) == player as u8 {
                     v.push(1.0);
                 } else if self.get(x,y) == !player as u8 {
                     v.push(-1.0);
                 } else {
                     v.push(0.0);
-                }
+                }*/
             }
         }
         v

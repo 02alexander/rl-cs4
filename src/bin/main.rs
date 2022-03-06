@@ -9,7 +9,7 @@ extern crate serde_json;
 extern crate gamesolver;
 
 use gamesolver::connect4::{Connect4, Player, BOARD_HEIGHT, BOARD_WIDTH, GameState, Action};
-use gamesolver::evaluators::{Evaluator, SimpleEval, LinesEval, ConsequtiveEval};
+use gamesolver::evaluators::{Evaluator, SimpleEval, LinesEval, ConsequtiveEval, CNNEval};
 use gamesolver::search::{minimax_action, minimax, MinimaxAgent, abpruning_action, abpruning_best_action};
 use std::io::{self, BufRead};
 use gamesolver::matchmaker::{Agent, MatchMaker};
@@ -44,50 +44,101 @@ enum Commands {
     }
 }
 
-
 fn main() {
     //let cli = Cli::parse();
 
-    /*let evaluator = ConsequtiveEval::new();
+    let evaluator = CNNEval::new(String::from("models/model.pt"));
     let policy = EpsilonGreedy::new(0.1);
-    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
+    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.001);
     ai.discount = 0.95;
     ai.depth = 4;
     let mut ai: Box<dyn RL> = Box::new(ai);
-    */
-    
 
-    let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
-    let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
 
-    for i in 0..2001 {
+    //let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
+    //let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
+
+    /*for i in 0..60 {
         //let lineeval = LinesEval::new();
         //let opponent = MinimaxAgent::new(&lineeval, 4);
         //ai.play_against(&opponent, Player::Red);
         ai.self_play();
-
-        if i%200 == 0 {
+        println!("{}",i);
+        if i%50 == 0 {
             let lineval = LinesEval::new();
             let agenta = MinimaxAgent::new(ai.get_evaluator(), 4);
             let refagent = MinimaxAgent::new(&lineval, 4);
             let mut mm = MatchMaker::new();
             mm.add_agent(&agenta);
             mm.add_agent(&refagent);
-            mm.play_n_games(100);
+            mm.play_n_games(20);
             println!("{:?}", mm.scores());
-            println!("{:?}", ai.get_evaluator().get_params());
+            test_evaluator(ai.get_evaluator());
         }
-        //ai.self_play();
+    }*/
+
+    //let serialized_ai = serde_json::to_string(&ai).unwrap();
+    //std::fs::write("ai.json", &serialized_ai).unwrap();
+    
+    //user_vs_ai();
+    test_cnneval();
+}
+
+fn test_cnneval() {
+    /*let v: Vec<f32> = vec![1., 2., 3., 4., 5., 6., 7., 8.];
+    let tensor = unsafe {
+        let mut t = tch::Tensor::of_blob(
+            v.as_ptr() as *const u8,
+            &[1,2,2,2], 
+            &[0,4,2,1],
+            tch::Kind::Float,
+            tch::Device::Cpu
+        );
+        //t
+        tch::Tensor::clone_from_ptr(t.as_mut_ptr())
+    };
+    tensor.print();
+    */
+
+    let mut board = Connect4::new();
+    let moves = vec![5, 4, 6, 4];
+    for mv in moves {
+        board.play_move(mv);
+    }
+    println!("{:?}", board);
+    let v = board.vectorize(Player::Red);
+    for i in 0..v.len() {
+        print!("{:2.} ", v[i]);
+        if i%connect4::BOARD_WIDTH==connect4::BOARD_WIDTH-1 {
+            println!("");
+        }
     }
 
-    let serialized_ai = serde_json::to_string(&ai).unwrap();
-    std::fs::write("ai.json", &serialized_ai).unwrap();
+    let mut evaluator = CNNEval::new(String::from("models/model.pt"));
+    for i in 0..100 {
+        let v = evaluator.value(&board, Player::Red);
+        println!("{:?}", v);
+        evaluator.update(&board, Player::Red, 1.0, 0.001);
+    }
+}
 
-    // let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
-    // let deserialized_ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
-    
+fn test_evaluator(eval: &dyn Evaluator) {
+    let mut board = Connect4::new();
+    let moves = vec![5, 4, 6, 4];
+    for mv in moves {
+        board.play_move(mv);
+    }
+    println!("{:?}", board);
+    let v = board.vectorize(Player::Red);
+    for i in 0..v.len() {
+        print!("{:2.} ", v[i]);
+        if i%connect4::BOARD_WIDTH==connect4::BOARD_WIDTH-1 {
+            println!("");
+        }
+    }
+    let v = eval.value(&board, Player::Red);
+    println!("{:?}", v);
 
-    //user_vs_ai();
 }
 
 fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T, player: Player) -> Action {
