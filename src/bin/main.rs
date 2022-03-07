@@ -47,27 +47,29 @@ enum Commands {
 fn main() {
     //let cli = Cli::parse();
 
-    let fname_ai = "ai.json";
-    //let evaluator = CNNEval::new(String::from("models/model.pt"));
+    let fname_ai = "cnn_ai.json";
     
-    let evaluator = ConsequtiveEval::new();
+    /*let evaluator = CNNEval::new(String::from("models/model.pt"));
+    //let evaluator = ConsequtiveEval::new();
     let policy = EpsilonGreedy::new(0.1);
-    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
+    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.001);
     ai.discount = 0.95;
     ai.depth = 4;
     let mut ai: Box<dyn RL> = Box::new(ai);
+    */
     
 
     let serialized_ai = std::fs::read_to_string(fname_ai).unwrap();
     let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
 
-    for i in 0..1001 {
+    for i in 0..100 {
         //let lineeval = LinesEval::new();
         //let opponent = MinimaxAgent::new(&lineeval, 4);
         //ai.play_against(&opponent, Player::Red);
         ai.self_play();
-        if i%200 == 0 {
-            let lineval = LinesEval::new();
+        println!("{}",i);
+        /*if i%200 == 0 {
+            let lineval = SimpleEval::new();
             let agenta = MinimaxAgent::new(ai.get_evaluator(), 4);
             let refagent = MinimaxAgent::new(&lineval, 4);
             let mut mm = MatchMaker::new();
@@ -76,14 +78,28 @@ fn main() {
             mm.play_n_games(100);
             println!("{:?}", mm.scores());
             test_evaluator(ai.get_evaluator());
-        }
+        }*/
+        println!("{:?}", mse_cnneval(ai.get_evaluator()));
     }
 
-    let serialized_ai = serde_json::to_string(&ai).unwrap();
-    std::fs::write(fname_ai, &serialized_ai).unwrap();
+    //let serialized_ai = serde_json::to_string(&ai).unwrap();
+    //std::fs::write(fname_ai, &serialized_ai).unwrap();
     
     //user_vs_ai();
     //test_cnneval();
+}
+
+fn mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
+    // good for yellow
+    let actions = vec![4, 2, 3, 5, 5, 3, 5, 5, 6, 5, 6, 2, 6, 6, 6, 3, 6, 4];
+    let mut board = Connect4::new();
+    for action in actions {
+        board.play_move(action);
+    }
+    let vyellow = evaluator.value(&board, Player::Yellow);
+    let vred = evaluator.value(&board, Player::Red);
+
+    ((vyellow-1.0)*(vyellow-1.0)+(vred+1.0)*(vred+1.0))/2.0
 }
 
 fn test_cnneval() {
@@ -202,17 +218,27 @@ fn user_vs_ai() {
     let p = board.cur_player;
     let levaluator = ConsequtiveEval::new();
     //let evaluator = SimpleEval::new(!board.cur_player);
+    
+    let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
+    let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
+    let agent = MinimaxAgent::new(ai.get_evaluator(), 4);
+
     let evaluator = SimpleEval::new();
+    let mut actions = Vec::new();
     loop {
         println!("{:?}", board);
         println!("{:?}", board.game_state);
-        println!("{:?}", levaluator.value(&board, !p));
+        println!("{:?}", actions);
+        println!("{:?}", ai.get_evaluator().value(&board, !p));
         let (action, reverse) = get_move_from_user(&board);
         if reverse {
-            //board.reverse_last_move();
-            //board.reverse_last_move();
+            board.reverse_last_action(actions[actions.len()-1]);
+            board.reverse_last_action(actions[actions.len()-2]);
+            actions.remove(actions.len()-1);
+            actions.remove(actions.len()-1);
             continue
         } else {
+            actions.push(action);
             board.play_move(action);
             match board.game_state {
                 GameState::Draw => {
@@ -224,7 +250,9 @@ fn user_vs_ai() {
                 }
             }
         }
-        let action = get_move_from_minimax(&board, &evaluator, !p);
+        //let action = get_move_from_minimax(&board, &evaluator, !p);
+        let action = agent.get_action(&board, !p);
+        actions.push(action);
         board.play_move(action);
         match board.game_state {
             GameState::Draw => {
