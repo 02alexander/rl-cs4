@@ -36,7 +36,7 @@ impl Evaluator for SimpleEval {
         match board.game_state {
             GameState::Won(p) => {
                 //if p == self.player {1./0.} else {-1./0.}
-                if p == player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
+                if p == player {1.0 as f64} else {-1.0 as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {

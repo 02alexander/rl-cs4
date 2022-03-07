@@ -40,7 +40,6 @@ pub struct Connect4 {
     // tile on board takes up 2 bits, 0 for empty, 1 for red, 2 for yellow. 
     // starts in bottom left corner and goes row by row.
     pub board: u128,
-    pub actions: Vec<Action>,
     pub cur_player: Player,
     pub game_state: GameState,
 }
@@ -61,7 +60,6 @@ impl Connect4 {
             //board: vec![vec![TileStates::Empty; BOARD_HEIGHT];BOARD_WIDTH], // board[x][y] where x,y=(0,0) is the bottom left corner.
             //board: vec![TileStates::Empty; BOARD_HEIGHT*BOARD_WIDTH],
             board: 0,
-            actions: Vec::with_capacity(BOARD_HEIGHT*BOARD_WIDTH),
             cur_player: Player::Red,
             game_state: GameState::InProgress,
         }
@@ -69,7 +67,6 @@ impl Connect4 {
 
     pub fn play_move(&mut self, action: Action) {
         assert_eq!(self.game_state, GameState::InProgress);
-        self.actions.push(action);
         if !self.is_valid_move(action) {
             return
         }
@@ -85,13 +82,11 @@ impl Connect4 {
         self.cur_player = !self.cur_player;
     }
 
-    pub fn reverse_last_move(&mut self) {
-        if let Some(last_action) = self.actions.pop() {
-            let ap = self.pos_from_action(last_action);
-            self.set(ap[0],ap[1],0);
-            self.game_state = GameState::InProgress;
-            self.cur_player = !self.cur_player;
-        }
+    pub fn reverse_last_action(&mut self, last_action: Action) {
+        let ap = self.pos_from_action(last_action);
+        self.set(ap[0],ap[1],0);
+        self.game_state = GameState::InProgress;
+        self.cur_player = !self.cur_player;
     }
 
     pub fn player_won(&self, piece_pos: [usize; 2]) -> bool {
@@ -275,7 +270,6 @@ mod test {
         }
         board.play_move(moves[moves.len()-1]);
         println!("{:?}", board);
-        println!("{:?}", board.actions);
         println!("{:?}", board.game_state);
         assert_eq!(board.game_state, GameState::Won(Player::Yellow));
     }
@@ -291,10 +285,9 @@ mod test {
         }
         board.play_move(moves[moves.len()-1]);
         println!("{:?}", board);
-        println!("{:?}", board.actions);
         println!("{:?}", board.game_state);
         assert_eq!(board.game_state, GameState::Won(Player::Yellow));
-        board.reverse_last_move();
+        board.reverse_last_action(moves[moves.len()-1]);
         assert_eq!(board.game_state, GameState::InProgress);
         board.play_move(6);
         board.play_move(2);
@@ -308,7 +301,7 @@ mod test {
         board.play_move(0);
         let old_board = board.clone();
         board.play_move(0);
-        board.reverse_last_move();
+        board.reverse_last_action(0);
         println!("{:?}\n{:?}",old_board,board);
         assert_eq!(old_board.board, board.board);
     }

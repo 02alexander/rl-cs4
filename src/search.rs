@@ -89,7 +89,7 @@ fn _minimax(board: &mut Connect4, depth: u32, ismaximizing: bool, evaluator: &dy
         for action in board.valid_moves() {
             board.play_move(action);
             value = value.max(_minimax(board, depth-1, false, evaluator, player));
-            board.reverse_last_move();
+            board.reverse_last_action(action);
         }
         return value
     } else {
@@ -97,7 +97,7 @@ fn _minimax(board: &mut Connect4, depth: u32, ismaximizing: bool, evaluator: &dy
         for action in board.valid_moves() {
             board.play_move(action);
             value = value.min(_minimax(board, depth-1, true, evaluator, player));
-            board.reverse_last_move();
+            board.reverse_last_action(action);
         }
         return value
     }
@@ -112,7 +112,7 @@ pub fn minimax_action(board: &mut Connect4, action: Action, depth: u32, evaluato
     unsafe { 
         println!("minimax count={:?}", count); 
     }
-    board.reverse_last_move();
+    board.reverse_last_action(action);
     v
 }
 
@@ -121,7 +121,7 @@ pub fn abpruning_action(
         evaluator: &dyn Evaluator, tt: &mut TranspositionTable<f64>, player: Player) -> f64 {
     board.play_move(action);
     let v = _abpruning(board, -1./0., 1./0., depth, false, evaluator, tt, player);
-    board.reverse_last_move();
+    board.reverse_last_action(action);
     v
 }
 
@@ -178,7 +178,7 @@ fn _abpruning(board: &mut Connect4, mut alpha: f64, mut beta: f64,
         for action in board.valid_moves() {
             board.play_move(action);
             max_value = max_value.max(_abpruning(board, alpha, beta, depth-1, false, evaluator, tt, player));
-            board.reverse_last_move();
+            board.reverse_last_action(action);
             alpha = alpha.max(max_value);
             
             if max_value >= beta {
@@ -198,7 +198,7 @@ fn _abpruning(board: &mut Connect4, mut alpha: f64, mut beta: f64,
         for action in board.valid_moves() {
             board.play_move(action);
             min_value = min_value.min(_abpruning(board, alpha, beta, depth-1, true, evaluator, tt, player));
-            board.reverse_last_move();
+            board.reverse_last_action(action);
             beta = beta.min(min_value);
             if min_value <= alpha {
                 break

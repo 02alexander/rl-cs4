@@ -47,41 +47,43 @@ enum Commands {
 fn main() {
     //let cli = Cli::parse();
 
-    let evaluator = CNNEval::new(String::from("models/model.pt"));
+    let fname_ai = "ai.json";
+    //let evaluator = CNNEval::new(String::from("models/model.pt"));
+    
+    let evaluator = ConsequtiveEval::new();
     let policy = EpsilonGreedy::new(0.1);
-    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.001);
+    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
     ai.discount = 0.95;
     ai.depth = 4;
     let mut ai: Box<dyn RL> = Box::new(ai);
+    
 
+    let serialized_ai = std::fs::read_to_string(fname_ai).unwrap();
+    let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
 
-    //let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
-    //let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
-
-    /*for i in 0..60 {
+    for i in 0..1001 {
         //let lineeval = LinesEval::new();
         //let opponent = MinimaxAgent::new(&lineeval, 4);
         //ai.play_against(&opponent, Player::Red);
         ai.self_play();
-        println!("{}",i);
-        if i%50 == 0 {
+        if i%200 == 0 {
             let lineval = LinesEval::new();
             let agenta = MinimaxAgent::new(ai.get_evaluator(), 4);
             let refagent = MinimaxAgent::new(&lineval, 4);
             let mut mm = MatchMaker::new();
             mm.add_agent(&agenta);
             mm.add_agent(&refagent);
-            mm.play_n_games(20);
+            mm.play_n_games(100);
             println!("{:?}", mm.scores());
             test_evaluator(ai.get_evaluator());
         }
-    }*/
+    }
 
-    //let serialized_ai = serde_json::to_string(&ai).unwrap();
-    //std::fs::write("ai.json", &serialized_ai).unwrap();
+    let serialized_ai = serde_json::to_string(&ai).unwrap();
+    std::fs::write(fname_ai, &serialized_ai).unwrap();
     
     //user_vs_ai();
-    test_cnneval();
+    //test_cnneval();
 }
 
 fn test_cnneval() {
@@ -172,13 +174,15 @@ fn get_move_from_user(board: &Connect4) -> (Action, bool) {
 fn user_vs_user() {
     let mut board = Connect4::new();
     let evaluator = SimpleEval::new();
+    let mut last_action = 0;
     loop {
         println!("{:?}", board);
         println!("{:?}", board.game_state);
         let (action, reverse) = get_move_from_user(&board);
         if reverse {
-            board.reverse_last_move();
+            board.reverse_last_action(last_action);
         } else {
+            last_action = action;
             board.play_move(action);
             match board.game_state {
                 GameState::Draw => {
@@ -200,14 +204,13 @@ fn user_vs_ai() {
     //let evaluator = SimpleEval::new(!board.cur_player);
     let evaluator = SimpleEval::new();
     loop {
-        println!("{:?}", board.actions);
         println!("{:?}", board);
         println!("{:?}", board.game_state);
         println!("{:?}", levaluator.value(&board, !p));
         let (action, reverse) = get_move_from_user(&board);
         if reverse {
-            board.reverse_last_move();
-            board.reverse_last_move();
+            //board.reverse_last_move();
+            //board.reverse_last_move();
             continue
         } else {
             board.play_move(action);
