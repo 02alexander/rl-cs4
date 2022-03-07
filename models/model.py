@@ -12,16 +12,18 @@ class DemoModule(Module):
         super().__init__()
         self.conv1 = torch.nn.Conv2d(1, 4, kernel_size=(3, 3), padding=(1,1))
         #self.pool = torch.nn.MaxPool2d((2,2))
+        self.conv2 = torch.nn.Conv2d(4, 16, kernel_size=(2,2))
         self.flatten = torch.nn.Flatten()
-        self.linear1 = torch.nn.Linear(4 * width * height, 20)
+        self.linear1 = torch.nn.Linear(16 * (width-1) * (height-1), 20)
         self.linear2 = torch.nn.Linear(20, 1)
 
     def forward(self, x):
         x = torch.relu(self.conv1(x))
+        x = torch.relu(self.conv2(x))
         #x = self.pool(x)
         x = self.flatten(x)
         x = torch.relu(self.linear1(x))
-        x = self.linear2(x)
+        x = torch.tanh(self.linear2(x))
         return x
 
 
