@@ -3,7 +3,7 @@ use crate::evaluators::{Evaluator, ConsequtiveEval, LinesEval};
 use crate::connect4::{Connect4, Player, N_ACTIONS, Action, GameState};
 use crate::policies::Policy;
 use crate::matchmaker::{Agent, play_game};
-use crate::search::{abpruning_value};
+use crate::search::{abpruning_value, batch_negamax, BatchMinimaxAgent};
 use crate::search::MinimaxAgent;
 use serde::{Serialize, Deserialize};
 
@@ -91,18 +91,9 @@ impl RL for QLearning {
                 }
                 //self.evaluator.value(&next_state, player)
             } else {
-                /*let mut max_av = -1.0/0.;
-                for action in actions {
-                    next_state.play_move(action);
-                    let av = self.evaluator.value(&next_state);
-                    next_state.reverse_last_move();
-                    if av > max_av {
-                        max_av = av;
-                    }
-                }
-                max_av
-                */
-                let v = abpruning_value(&next_state, self.depth, &*self.evaluator, player);
+
+                //let v = abpruning_value(&next_state, self.depth, &*self.evaluator, player);
+                let v = batch_negamax(&next_state, self.depth, &*self.evaluator, player);
                 if v == 1./0. {
                     1.0
                 } else if v == -1./0. {
@@ -112,19 +103,18 @@ impl RL for QLearning {
                 }
             };
             
-            /*let current_av = self.evaluator.value(&states[i], player);
-            */
-
+            //let current_av = self.evaluator.value(&states[i], player);
             //let deltas = grad.iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
             //self.evaluator.apply_update(deltas);
+            self.evaluator.update(&states[i].symmetry(), player, self.discount*target_av, self.step_size);
             self.evaluator.update(&states[i], player, self.discount*target_av, self.step_size);
         }
     }
 
     fn self_play(&mut self) {
-        let mut agenta = MinimaxAgent::new(&*self.evaluator, self.depth);
+        let mut agenta = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
         //agenta.set_player(Player::Red);
-        let mut agentb = MinimaxAgent::new(&*self.evaluator, self.depth);
+        let mut agentb = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
         //agentb.set_player(Player::Yellow);
         let game_hist = play_game(&agenta, &agentb);
         self.update(&game_hist, Player::Red);

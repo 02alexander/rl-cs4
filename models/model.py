@@ -28,14 +28,14 @@ class DemoModule(Module):
 
 
 
-# a = np.arange(5*6*7)
-# a.resize((5,1,6,7))
-# a = torch.tensor(a)
-# a = a.float()
-# print(a.size())
+a = np.arange(5*6*7)
+a.resize((5,1,6,7))
+a = torch.tensor(a)
+a = a.float()
+print(a.size())
 net = DemoModule()
 net = net.double()
-# print(net(a))
+print(net(a))
 
 traced_script_module = torch.jit.script(net)
 traced_script_module.save("models/model.pt")

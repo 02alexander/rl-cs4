@@ -32,6 +32,28 @@ impl<'a> Agent for MinimaxAgent<'a> {
     }
 }
 
+pub struct BatchMinimaxAgent<'a> {
+    evaluator: &'a dyn Evaluator,
+    depth: u32,
+    batch_depth: u32,
+}
+
+impl<'a> BatchMinimaxAgent<'a> {
+    pub fn new(evaluator: &'a dyn Evaluator, depth: u32, batch_depth: u32) -> Self {
+        BatchMinimaxAgent {
+            evaluator,
+            depth,
+            batch_depth,
+        }
+    }
+}
+
+impl<'a> Agent for BatchMinimaxAgent<'a> {
+    fn get_action(&self, board: &Connect4, player: Player) -> Action {
+        batch_negamax_best_action(board, self.depth, &*self.evaluator, player)
+    }
+}
+
 pub struct TranspositionTable<T> {
     table: [Option<(u128, T)>;TABLE_SIZE],
 }
@@ -210,17 +232,30 @@ fn _abpruning(board: &mut Connect4, mut alpha: f64, mut beta: f64,
     retv
 }
 
-pub fn negamax_best_action(board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> Action {
+pub fn batch_negamax_best_action(board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> Action {
     let mut _board = board.clone();
     let mut avs = Vec::new();
     for action in _board.valid_moves() {
         _board.play_move(action);
-        //avs.push((action, -abnegamax(&mut _board, depth-1, evaluator, !player)));
         avs.push((action, -batch_negamax(&_board, depth-1, evaluator, !player)));
         _board.reverse_last_action(action);
-        //avs.push((action, batch_negamax(&board, depth, evaluator, player)));
     }
-    println!("{:?}", avs);
+    //println!("{:?}", avs);
+    let mx = avs.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
+    let best_avs = avs.iter().filter(|(_,v)| *v==mx).collect::<Vec<&(Action,f64)>>();
+    //println!("{:?}", avs);
+    best_avs[fastrand::usize(0..best_avs.len())].0
+}
+
+pub fn batch_abnegamax_best_action(board: &Connect4, depth: u32, batch_depth: u32, evaluator: &dyn Evaluator, player: Player) -> Action {
+    let mut _board = board.clone();
+    let mut avs = Vec::new();
+    for action in _board.valid_moves() {
+        _board.play_move(action);
+        avs.push((action, -abnegamax(&_board, depth-1, batch_depth, evaluator, !player)));
+        _board.reverse_last_action(action);
+    }
+    //println!("{:?}", avs);
     let mx = avs.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
     let best_avs = avs.iter().filter(|(_,v)| *v==mx).collect::<Vec<&(Action,f64)>>();
     //println!("{:?}", avs);
@@ -241,19 +276,24 @@ pub fn negamax(board: &mut Connect4, depth: u32, evaluator: &dyn Evaluator, play
     val
 }
 
-pub fn abnegamax(board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
+pub fn abnegamax(board: &Connect4, depth: u32, batch_depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
     let mut _board = board.clone();
-    _abnegamax(&mut _board, -1./0., 1./0., depth, evaluator, player)
+    _abnegamax(&mut _board, -1./0., 1./0., depth, batch_depth, evaluator, player)
 }
 
-fn _abnegamax(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
+fn _abnegamax(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, batch_depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
     if board.game_state != GameState::InProgress || depth == 0 {
         return evaluator.value(board, player);
     }
     let mut val: f64 = -1./0.;
     for action in board.valid_moves() {
         board.play_move(action);
-        let v = -_abnegamax(board, -beta, -alpha, depth-1, evaluator, !player);
+        //let v = -_abnegamax(board, -beta, -alpha, depth-1, batch_depth, evaluator, !player);
+        let v = if depth <= batch_depth+1 {
+            -batch_negamax(board, depth-1, evaluator, !player)
+        } else {
+            -_abnegamax(board, -beta, -alpha, depth-1, batch_depth, evaluator, !player)
+        };
         val = val.max(v);
         board.reverse_last_action(action);
         alpha = alpha.max(val);
@@ -267,14 +307,15 @@ fn _abnegamax(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, e
 pub fn batch_negamax(board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
     let mut _board = board.clone();
     let leafs = leafs(&mut _board, depth);
-    println!("leafs.len()={:?}", leafs.len());
+    //println!("leafs.len()={:?}", leafs.len());
     let mut vals: HashMap<u128, f64> = HashMap::new();
     let mut leaf_vals = Vec::with_capacity(leafs.len());
     
     // compute leaf values in batch
-    for leaf in &leafs {
+    /*for leaf in &leafs {
         leaf_vals.push(evaluator.value(&leaf, player));
-    }
+    }*/
+    leaf_vals.append(&mut evaluator.values(&leafs, player));
 
     for (i,leaf_val) in leaf_vals.iter().enumerate() {
         vals.insert(leafs[i].board,*leaf_val);

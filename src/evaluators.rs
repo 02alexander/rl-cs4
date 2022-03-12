@@ -13,6 +13,7 @@ use std::fmt;
 #[typetag::serde(tag = "type")]
 pub trait Evaluator {
     fn value(&self, board: &Connect4, player: Player) -> f64;
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64>;
     //fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64>;
     //fn apply_update(&mut self, change: Vec<f64>);
     fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64);
@@ -43,6 +44,13 @@ impl Evaluator for SimpleEval {
                 0.0
             },
         }
+    }
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+        let mut v = Vec::with_capacity(boards.len());
+        for board in boards {
+            v.push(self.value(&board, player));
+        }
+        v
     }
     /*fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
         unimplemented!()
@@ -86,6 +94,13 @@ impl Evaluator for LinesEval {
                 self.lines_evaluation(board, player)
             },
         }
+    }
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+        let mut v = Vec::with_capacity(boards.len());
+        for board in boards {
+            v.push(self.value(&board, player));
+        }
+        v
     }
     /*fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
         unimplemented!()
@@ -192,6 +207,13 @@ impl Evaluator for ConsequtiveEval {
                 tot
             },
         }
+    }
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+        let mut v = Vec::with_capacity(boards.len());
+        for board in boards {
+            v.push(self.value(&board, player));
+        }
+        v
     }
     /*fn apply_update(&mut self, change: Vec<f64>) {
         for i in 0..change.len() {
@@ -411,6 +433,33 @@ impl Evaluator for CNNEval {
                 }
             },
         }
+    }
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+        let mut vectorized_boards: Vec<f64> = Vec::with_capacity(42*boards.len());
+        for board in boards {
+            vectorized_boards.append(&mut board.vectorize(player));
+        }
+        let tensor = unsafe {
+            let ptr = vectorized_boards.as_ptr();
+            let t = tch::Tensor::of_blob(
+                ptr as *const u8, 
+                &[boards.len() as i64,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+                &[(connect4::BOARD_HEIGHT*connect4::BOARD_WIDTH) as i64 , (connect4::BOARD_HEIGHT*connect4::BOARD_WIDTH) as i64, connect4::BOARD_WIDTH as i64, 1],
+                tch::Kind::Double,
+                tch::Device::Cpu,
+            );
+            t
+        };
+        let v = self.model.forward_t(&tensor, true);
+        let data_ptr = v.data_ptr();
+        let mut out = Vec::with_capacity(boards.len());
+        unsafe {
+            for i in 0..boards.len() {
+                out.push(*(data_ptr as *const f64).add(i));
+            }
+            //*(data_ptr as *const f64)
+        }
+        out
     }
     fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
         let mut optimizer = tch::nn::Sgd::default().build(&self.vs, learning_rate).unwrap();

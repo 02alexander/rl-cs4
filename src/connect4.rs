@@ -169,7 +169,30 @@ impl Connect4 {
             }
         }
         v
-        //(0..N_ACTIONS).filter(|a|self.is_valid_move(*a)).collect()
+    }
+
+    // mirrors board around the middle of the board.
+    // assumes BOARD_WIDTH = 7. so if BOARD_WIDTH changes then so must this function
+    pub fn symmetry(&self) -> Connect4 {
+        //let col_mask: u128 = (((((((((3<<BOARD_WIDTH*2)+3)<<BOARD_WIDTH*2)+3)<<BOARD_WIDTH*2)+3)<<BOARD_WIDTH*2)+3)<<BOARD_WIDTH*2)+3;
+        let mut col_mask: u128 = 0;
+        for _ in 0..BOARD_HEIGHT {
+            col_mask = (col_mask<<BOARD_WIDTH*2)+3;
+        }
+        let mut new_board:u128 = 0;
+        for i in 0..3 {
+            new_board += (self.board&(col_mask<<(i*2)))<<((3-i)*4);
+        }
+        for i in 0..3 {
+            new_board += (self.board&(col_mask<<(4+i)*2))>>(i+1)*4;
+        }
+        new_board += self.board&(col_mask<<3*2);
+        
+        Connect4 {
+            board: new_board,
+            cur_player: self.cur_player,
+            game_state: self.game_state,
+        }
     }
 
     pub fn vectorize(&self, player: Player) -> Vec<f64> {

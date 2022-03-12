@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 extern crate gamesolver;
 use gamesolver::connect4::{self, Connect4};
-use gamesolver::search::{abpruning_action_values};
+use gamesolver::search::{*};
 use gamesolver::evaluators::{ConsequtiveEval, LinesEval, SimpleEval, CNNEval, Evaluator};
 use tch::nn::{ModuleT};
 
@@ -100,6 +100,33 @@ fn cnn_eval_forward_1000(c: &mut Criterion) {
     }));
 }
 
+fn cnn_search_batch(c: &mut Criterion) {
+    let mut board = Connect4::new();
+    let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
+    for action in actions {
+        board.play_move(action);
+    }
+    let p = board.cur_player;
+    let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
+    c.bench_function("CNNEval:search_batch_depth=4", |b| b.iter(||{
+        black_box(batch_abnegamax_best_action(&board, 4, 4, &evaluator, p));
+    }));
+}
+
+fn cnn_search(c: &mut Criterion) {
+    let mut board = Connect4::new();
+    let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
+    for action in actions {
+        board.play_move(action);
+    }
+    let p = board.cur_player;
+    let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
+    c.bench_function("CNNEval:search_depth=5", |b| b.iter(||{
+        black_box(abpruning_best_action(&board, 5, &evaluator, p));
+    }));
+}
+
+
 fn search_benchmark(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
@@ -122,7 +149,9 @@ criterion_group!(
     search_benchmark, 
     cnn_eval_benchmark,
     cnn_eval_forward,
-    cnn_eval_forward_1000
+    cnn_eval_forward_1000,
+    cnn_search,
+    cnn_search_batch
 );
 //criterion_group!(benches, cnn_eval_benchmark);
 criterion_main!(benches);
