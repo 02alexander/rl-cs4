@@ -2,10 +2,9 @@
 use crate::connect4::{Connect4, Player, GameState, TileStates};
 use crate::connect4;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
-use serde::de::{self, Visitor};
+use serde::de::{self, Visitor, SeqAccess};
 use anyhow::Result;
-use tch::nn::{Adam, ModuleT, OptimizerConfig, VarStore};
-use tch::vision::dataset::Dataset;
+use tch::nn::{ModuleT, OptimizerConfig, VarStore};
 use tch::TrainableCModule;
 use tch::{CModule, Device};
 use std::fmt;
@@ -289,66 +288,7 @@ impl ConsequtiveEval {
     }
 }
 
-
-/*
-#[derive(Clone, Serialize, Deserialize)]
 pub struct CNNEval {
-    
-}
-
-#[typetag::serde]
-impl Evaluator for CNNEval {
-    fn value(&self, board: &Connect4, player: Player) -> f64 {
-        //println!("ConsequtiveEval.value()");
-        match board.game_state {
-            GameState::Won(p) => {
-                if p == player {1./0.} else {-1./0.}
-                //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
-            },
-            GameState::Draw => 0.0,
-            GameState::InProgress => {
-                let r: PyResult<f64> = Python::with_gil(|py| {
-                    let ceval = PyModule::from_code(py, r#"
-ceval
-                    "#, "", "").unwrap();
-                    
-                    Ok(2.0)
-                });
-                r.unwrap()
-            },
-        }
-    }
-    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
-        Python::with_gil(|py| {
-            let ceval = PyModule::from_code(py, "
-            ", "", "").unwrap();
-        });
-    }
-    fn get_params(&self) -> Vec<f64> {
-        unimplemented!()
-    }
-}
-
-impl CNNEval {
-    pub fn new() -> Self {
-        Python::with_gil(|py| {
-            py.run(r#"
-import cnneval
-ceval = CNNEval()
-def update(state, target_av, learning_rate):
-    global ceval
-    ceval.update(state, target_av, learning_rate)
-            "#, None, None).unwrap();  
-        });
-        CNNEval {
-            
-        }
-    }
-}*/
-
-
-pub struct CNNEval {
-    pub model_path: String,
     pub model: TrainableCModule,
     pub vs: VarStore,
 }
@@ -358,46 +298,53 @@ impl CNNEval {
         let device = Device::Cpu;
         let vs = VarStore::new(device);
         let model = TrainableCModule::load(&model_path, vs.root()).unwrap();
-        let opt = tch::nn::sgd(0.0, 0.0, 0.0, false);
         CNNEval {
-            model_path,
             model,
             vs,
         }
+    }
+    fn tmp_file_name(len: usize) -> String {
+        (0..len).map(|_| fastrand::alphanumeric()).collect()
     }
 }
 
 impl Serialize for CNNEval {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
         where S: Serializer {
-        self.model.save(&self.model_path).unwrap();
-        println!("serialize called");
-        serializer.serialize_str(&self.model_path)
-
+        let fname = CNNEval::tmp_file_name(10);
+        self.model.save(&fname).unwrap();
+        let v = std::fs::read(&fname).expect(&format!("failed to read {}", &fname));
+        std::fs::remove_file(&fname).unwrap();
+        serializer.serialize_bytes(&v)
     }
 }
 
 impl<'de> Deserialize<'de> for CNNEval {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
-        deserializer.deserialize_string(ModelPathVisitor)
+        deserializer.deserialize_seq(ByteDataVisitor)
     }
 }
 
-struct ModelPathVisitor;
-impl<'de> Visitor<'de> for ModelPathVisitor {
+struct ByteDataVisitor;
+impl<'de> Visitor<'de> for ByteDataVisitor {
     type Value = CNNEval;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string to the model")
+        formatter.write_str("bytes of data")
     }
 
-    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E> where E: de::Error {
+    fn visit_seq<S>(self, mut access: S) -> Result<Self::Value, S::Error> where S: SeqAccess<'de> {
         let device = Device::Cpu;
         let vs = VarStore::new(device);
-        let model_path = String::from(s);
-        let model = TrainableCModule::load(&model_path, vs.root()).expect(&format!("couldn't load module from file {}", &model_path));
+        let fname = CNNEval::tmp_file_name(10);
+        let mut data = Vec::new();
+        while let Some(value) = access.next_element()? {
+            data.push(value);
+        }
+        std::fs::write(&fname, &data).expect(&format!("failed to write to {}", &fname));
+        let model = TrainableCModule::load(&fname, vs.root()).expect(&format!("couldn't load module from file {}", &fname));
+        std::fs::remove_file(&fname).unwrap();
         Ok(CNNEval {
-            model_path,
             model,
             vs,
         })
