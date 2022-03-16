@@ -11,49 +11,6 @@ static mut count: u32 = 0;
 const TABLE_SIZE: usize = 7919;
 const MULTIPLIER: usize = 7909;
 
-
-pub struct MinimaxAgent<'a> {
-    evaluator: &'a dyn Evaluator,
-    depth: u32,
-}
-
-impl<'a> MinimaxAgent<'a> {
-    pub fn new(evaluator: &'a dyn Evaluator, depth: u32) -> Self {
-        MinimaxAgent {
-            evaluator,
-            depth,
-        }
-    }
-}
-
-impl<'a> Agent for MinimaxAgent<'a> {
-    fn get_action(&self, board: &Connect4, player: Player) -> Action {
-        abpruning_best_action(board, self.depth, &*self.evaluator, player)
-    }
-}
-
-pub struct BatchMinimaxAgent<'a> {
-    evaluator: &'a dyn Evaluator,
-    depth: u32,
-    batch_depth: u32,
-}
-
-impl<'a> BatchMinimaxAgent<'a> {
-    pub fn new(evaluator: &'a dyn Evaluator, depth: u32, batch_depth: u32) -> Self {
-        BatchMinimaxAgent {
-            evaluator,
-            depth,
-            batch_depth,
-        }
-    }
-}
-
-impl<'a> Agent for BatchMinimaxAgent<'a> {
-    fn get_action(&self, board: &Connect4, player: Player) -> Action {
-        batch_negamax_best_action(board, self.depth, &*self.evaluator, player)
-    }
-}
-
 pub struct TranspositionTable<T> {
     table: [Option<(u128, T)>;TABLE_SIZE],
 }
@@ -307,15 +264,15 @@ fn _abnegamax(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, b
 pub fn batch_negamax(board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
     let mut _board = board.clone();
     let leafs = leafs(&mut _board, depth);
-    //println!("leafs.len()={:?}", leafs.len());
     let mut vals: HashMap<u128, f64> = HashMap::new();
     let mut leaf_vals = Vec::with_capacity(leafs.len());
     
     // compute leaf values in batch
-    /*for leaf in &leafs {
-        leaf_vals.push(evaluator.value(&leaf, player));
-    }*/
-    leaf_vals.append(&mut evaluator.values(&leafs, player));
+    if depth % 2 == 0 {
+        leaf_vals.append(&mut evaluator.values(&leafs, player));
+    } else {
+        leaf_vals.append(&mut evaluator.values(&leafs, !player));
+    }
 
     for (i,leaf_val) in leaf_vals.iter().enumerate() {
         vals.insert(leafs[i].board,*leaf_val);

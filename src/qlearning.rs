@@ -3,15 +3,15 @@ use crate::evaluators::{Evaluator, ConsequtiveEval, LinesEval};
 use crate::connect4::{Connect4, Player, N_ACTIONS, Action, GameState};
 use crate::policies::Policy;
 use crate::matchmaker::{Agent, play_game};
-use crate::search::{abpruning_value, batch_negamax, BatchMinimaxAgent};
-use crate::search::MinimaxAgent;
+use crate::search::{abpruning_value, batch_negamax};
+use crate::agents::{BatchMinimaxAgent, MinimaxAgent, MinimaxPolicyAgent};
 use serde::{Serialize, Deserialize};
 
 #[typetag::serde(tag = "type")]
 pub trait RL {
     fn update(&mut self, game_hist: &Vec<Connect4>, player: Player);
     fn self_play(&mut self);
-    fn play_against(&mut self, opponent: &dyn Agent, opponent_player: Player);
+    fn play_against(&mut self, opponent: &dyn Agent);
     fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator;
 }
 
@@ -20,29 +20,9 @@ pub trait RL {
 pub struct QLearning {
     evaluator: Box<dyn Evaluator>,
     exploration_policy: Box<dyn Policy>, // exploration policy
-    step_size: f64,
+    pub step_size: f64,
     pub discount: f64,
     pub depth: u32, // depth to search during training.
-}
-
-pub struct PolicyMiniMaxAgent<P> {
-    exploration_policy: P,
-    depth: u32
-}
-
-impl<P: Policy> PolicyMiniMaxAgent<P> {
-    pub fn new(exploration_policy: P, depth: u32) -> Self {
-        PolicyMiniMaxAgent {
-            exploration_policy,
-            depth
-        }
-    }
-}
-
-impl<P> Agent for PolicyMiniMaxAgent<P> {
-    fn get_action(&self, board: &Connect4, player: Player) -> Action {
-        unimplemented!()
-    }
 }
 
 impl QLearning { 
@@ -60,6 +40,7 @@ impl QLearning {
 #[typetag::serde]
 impl RL for QLearning {
     
+    // Applies updates from game_hist where self is 'player'
     fn update(&mut self, game_hist: &Vec<Connect4>, player: Player) {
 
         let mut states = Vec::with_capacity(game_hist.len()/2+1);
@@ -112,34 +93,33 @@ impl RL for QLearning {
     }
 
     fn self_play(&mut self) {
-        let mut agenta = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
+        //let mut agenta = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
+        let mut agenta = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
         //agenta.set_player(Player::Red);
-        let mut agentb = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
+        //let mut agentb = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
+        let mut agentb = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
         //agentb.set_player(Player::Yellow);
         let game_hist = play_game(&agenta, &agentb);
         self.update(&game_hist, Player::Red);
         self.update(&game_hist, Player::Yellow);
     }
 
-    fn play_against(&mut self, opponent: &dyn Agent, opponent_player: Player) {
-        let agent = MinimaxAgent::new(&*self.evaluator, self.depth);
-        let mut p = Player::Red;
-        let game_hist = if fastrand::bool() {
-            p = Player::Red;
-            play_game(&agent, opponent)
+    fn play_against(&mut self, opponent: &dyn Agent) {
+        let agent = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
+        let (game_hist, selfp) = if fastrand::bool() {
+            (play_game(&agent, opponent), Player::Red)
         } else {
-            p = Player::Yellow;
-            play_game(opponent, &agent)
+            (play_game(opponent, &agent), Player::Yellow)
         };
         let end_state = game_hist.last().unwrap();
         if let GameState::Won(pl) = end_state.game_state {
-            if pl == p {
-                //println!("won");
+            if pl == selfp {
+                println!("won");
             } else {
-                //println!("lost");
+                println!("lost");
             }
         }
-        self.update(&game_hist, !opponent_player);
+        self.update(&game_hist, selfp);
     }
 
     fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator {
