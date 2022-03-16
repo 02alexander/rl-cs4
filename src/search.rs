@@ -1,11 +1,10 @@
 
 use crate::connect4::{Connect4, Player, Action, GameState};
 use crate::connect4;
-use crate::matchmaker::Agent;
 use crate::evaluators::Evaluator;
 use std::collections::HashMap;
 
-static mut count: u32 = 0;
+static mut COUNT: u32 = 0;
 
 // these two numbers must be coprime.
 const TABLE_SIZE: usize = 7919;
@@ -47,12 +46,9 @@ impl<T: Copy> TranspositionTable<T> {
 pub fn minimax(board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
     let mut _board = board.clone();
     unsafe { 
-        count = 0;
+        COUNT = 0;
     }
     let v = _minimax(&mut _board, depth, true, evaluator, player);
-    unsafe { 
-        //println!("minimax  count={:?}", count); 
-    }
     v
 }
 
@@ -61,7 +57,7 @@ fn _minimax(board: &mut Connect4, depth: u32, ismaximizing: bool, evaluator: &dy
     if depth == 0 || board.game_state != GameState::InProgress {
         let v = evaluator.value(&board, player); 
         unsafe { 
-            count += 1;
+            COUNT += 1;
         }
         return v;
     } else if ismaximizing {
@@ -86,11 +82,11 @@ fn _minimax(board: &mut Connect4, depth: u32, ismaximizing: bool, evaluator: &dy
 pub fn minimax_action(board: &mut Connect4, action: Action, depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
     board.play_move(action);
     unsafe { 
-        count = 0;
+        COUNT = 0;
     }
     let v = _minimax(board, depth, false, evaluator, player);
     unsafe { 
-        println!("minimax count={:?}", count); 
+        println!("minimax COUNT={:?}", COUNT); 
     }
     board.reverse_last_action(action);
     v
@@ -120,7 +116,7 @@ pub fn abpruning_best_action(
         board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> Action {
 
     let mut _board = board.clone();
-    let mut avs = abpruning_action_values(&mut _board, depth-1, evaluator, player);
+    let avs = abpruning_action_values(&mut _board, depth-1, evaluator, player);
 
     let mx = avs.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
     let best_avs = avs.iter().filter(|(_,v)| *v==mx).collect::<Vec<&(Action,f64)>>();
@@ -137,10 +133,10 @@ pub fn abpruning_value(
 fn _abpruning(board: &mut Connect4, mut alpha: f64, mut beta: f64, 
     depth: u32, ismaximizing: bool, evaluator: &dyn Evaluator, 
     tt: &mut TranspositionTable<f64>, player: Player) -> f64 {
-    let mut retv = 0.0;
+    let retv;
     if depth == 0 || board.game_state != GameState::InProgress {
         unsafe { 
-            count += 1;
+            COUNT += 1;
         }
         return evaluator.value(&board, player);
     }
@@ -238,7 +234,7 @@ pub fn abnegamax(board: &Connect4, depth: u32, batch_depth: u32, evaluator: &dyn
     _abnegamax(&mut _board, -1./0., 1./0., depth, batch_depth, evaluator, player)
 }
 
-fn _abnegamax(board: &mut Connect4, mut alpha: f64, mut beta: f64, depth: u32, batch_depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
+fn _abnegamax(board: &mut Connect4, mut alpha: f64, beta: f64, depth: u32, batch_depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
     if board.game_state != GameState::InProgress || depth == 0 {
         return evaluator.value(board, player);
     }

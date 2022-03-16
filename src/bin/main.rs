@@ -10,7 +10,8 @@ extern crate gamesolver;
 
 use gamesolver::connect4::{Connect4, Player, BOARD_HEIGHT, BOARD_WIDTH, GameState, Action};
 use gamesolver::evaluators::{Evaluator, SimpleEval, LinesEval, ConsequtiveEval, CNNEval};
-use gamesolver::search::{minimax_action, minimax, MinimaxAgent, abpruning_action, abpruning_best_action};
+use gamesolver::search::*;
+use gamesolver::agents::{BatchMinimaxAgent, MinimaxAgent, MinimaxPolicyAgent};
 use std::io::{self, BufRead};
 use gamesolver::matchmaker::{Agent, MatchMaker};
 use gamesolver::connect4;
@@ -28,11 +29,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Adds files to myapp
     Create {
-        file: String,
+        ai_file: String,
+        model_file: Option<String>
     },
     Train { 
+        ai_file: String,
         iterations: u32
     },
     Play {
@@ -41,52 +43,66 @@ enum Commands {
     Compare {
         ai_file1: String,
         ai_file2: String,
+        #[clap(default_value_t=100)]
+        nb_games: u32,
+        #[clap(default_value_t=4)]
+        depth: u32,
     }
 }
 
 fn main() {
-    //let cli = Cli::parse();
 
-    let fname_ai = "cnn_ai.json";
-    
-    /*let evaluator = CNNEval::new(String::from("models/model.pt"));
-    //let evaluator = ConsequtiveEval::new();
-    let policy = EpsilonGreedy::new(0.1);
-    let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.001);
-    ai.discount = 0.95;
-    ai.depth = 4;
-    let mut ai: Box<dyn RL> = Box::new(ai);
-    */
-    
+    let args = Cli::parse();
 
-    let serialized_ai = std::fs::read_to_string(fname_ai).unwrap();
-    let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
-
-    for i in 0..100 {
-        //let lineeval = LinesEval::new();
-        //let opponent = MinimaxAgent::new(&lineeval, 4);
-        //ai.play_against(&opponent, Player::Red);
-        ai.self_play();
-        println!("{}",i);
-        /*if i%200 == 0 {
-            let lineval = SimpleEval::new();
-            let agenta = MinimaxAgent::new(ai.get_evaluator(), 4);
-            let refagent = MinimaxAgent::new(&lineval, 4);
+    match args.command {
+        Commands::Create{ai_file, model_file} => {
+            if let Some(model_file) = model_file {
+                let evaluator = CNNEval::new(model_file);
+                let policy = EpsilonGreedy::new(0.1);
+                let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
+                ai.discount = 0.95;
+                ai.depth = 4;
+                let ai: Box<dyn RL> = Box::new(ai);
+                let serialized_ai = serde_json::to_string(&ai).unwrap();
+                std::fs::write(ai_file, &serialized_ai).unwrap();
+            } else {
+                let evaluator = SimpleEval::new();
+                let policy = EpsilonGreedy::new(0.1);
+                let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
+                ai.discount = 0.95;
+                ai.depth = 4;
+                let ai: Box<dyn RL> = Box::new(ai);
+                let serialized_ai = serde_json::to_string(&ai).unwrap();
+                std::fs::write(ai_file, &serialized_ai).unwrap();
+            }
+        },
+        Commands::Train {ai_file, iterations} => {
+            let mut ai: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
+            for i in 0..iterations {
+                println!("iteration: {}", i);
+                ai.self_play();
+            }
+            let serialized_ai = serde_json::to_string(&ai).unwrap();
+            std::fs::write(ai_file, &serialized_ai).unwrap();
+        }
+        Commands::Play {ai_file} => {
+            let ai: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
+            let agenta = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 5);
+            user_vs_agent(&agenta);
+        }
+        Commands::Compare {ai_file1, ai_file2, nb_games, depth} => {
+            let ai1: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&ai_file1).expect("valid file")).expect("json of RL");
+            let ai2: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&ai_file2).expect("valid file")).expect("json of RL");
+            let agenta = MinimaxPolicyAgent::new(ai1.get_evaluator(), ai1.get_policy(), depth);
+            let agentb = MinimaxPolicyAgent::new(ai2.get_evaluator(), ai2.get_policy(), depth);
             let mut mm = MatchMaker::new();
             mm.add_agent(&agenta);
-            mm.add_agent(&refagent);
-            mm.play_n_games(100);
+            mm.add_agent(&agentb);
+            mm.play_n_games(nb_games);
             println!("{:?}", mm.scores());
-            test_evaluator(ai.get_evaluator());
-        }*/
-        println!("{:?}", mse_cnneval(ai.get_evaluator()));
-    }
+        }   
 
-    //let serialized_ai = serde_json::to_string(&ai).unwrap();
-    //std::fs::write(fname_ai, &serialized_ai).unwrap();
-    
-    //user_vs_ai();
-    //test_cnneval();
+    }
 }
 
 fn mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
@@ -98,6 +114,8 @@ fn mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
     }
     let vyellow = evaluator.value(&board, Player::Yellow);
     let vred = evaluator.value(&board, Player::Red);
+    //println!("vyellow={}", vyellow);
+    //println!("vred={}", vred);
 
     ((vyellow-1.0)*(vyellow-1.0)+(vred+1.0)*(vred+1.0))/2.0
 }
@@ -160,7 +178,8 @@ fn test_evaluator(eval: &dyn Evaluator) {
 }
 
 fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T, player: Player) -> Action {
-    abpruning_best_action(board, 8, evaluator, player)
+    //abpruning_best_action(board, 8, evaluator, player)
+    batch_abnegamax_best_action(board, 5, 5, evaluator, player)
 }
 
 // returns (action, is_reverse)
@@ -213,23 +232,16 @@ fn user_vs_user() {
     }
 }
 
-fn user_vs_ai() {
+fn user_vs_agent(agent: &dyn Agent) {
     let mut board = Connect4::new();
     let p = board.cur_player;
-    let levaluator = ConsequtiveEval::new();
-    //let evaluator = SimpleEval::new(!board.cur_player);
-    
-    let serialized_ai = std::fs::read_to_string("ai.json").unwrap();
-    let mut ai: Box<dyn RL> = serde_json::from_str(&serialized_ai).unwrap();
-    let agent = MinimaxAgent::new(ai.get_evaluator(), 4);
 
-    let evaluator = SimpleEval::new();
     let mut actions = Vec::new();
+
     loop {
         println!("{:?}", board);
         println!("{:?}", board.game_state);
         println!("{:?}", actions);
-        println!("{:?}", ai.get_evaluator().value(&board, !p));
         let (action, reverse) = get_move_from_user(&board);
         if reverse {
             board.reverse_last_action(actions[actions.len()-1]);
@@ -250,7 +262,6 @@ fn user_vs_ai() {
                 }
             }
         }
-        //let action = get_move_from_minimax(&board, &evaluator, !p);
         let action = agent.get_action(&board, !p);
         actions.push(action);
         board.play_move(action);

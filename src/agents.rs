@@ -43,7 +43,7 @@ impl<'a> BatchMinimaxAgent<'a> {
 
 impl<'a> Agent for BatchMinimaxAgent<'a> {
     fn get_action(&self, board: &Connect4, player: Player) -> Action {
-        batch_negamax_best_action(board, self.depth, &*self.evaluator, player)
+        batch_abnegamax_best_action(board, self.depth, self.batch_depth, &*self.evaluator, player)
     }
 }
 

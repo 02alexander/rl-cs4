@@ -13,6 +13,7 @@ pub trait RL {
     fn self_play(&mut self);
     fn play_against(&mut self, opponent: &dyn Agent);
     fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator;
+    fn get_policy<'a>(&'a self) -> &'a dyn Policy;
 }
 
 
@@ -124,6 +125,9 @@ impl RL for QLearning {
 
     fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator {
         &*self.evaluator
+    }
+    fn get_policy<'a>(&'a self) -> &'a dyn Policy {
+        &*self.exploration_policy
     }
 }
 
