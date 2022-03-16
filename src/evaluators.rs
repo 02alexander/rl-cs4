@@ -2,19 +2,38 @@
 use crate::connect4::{Connect4, Player, GameState, TileStates};
 use crate::connect4;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
-use serde::de::{self, Visitor, SeqAccess};
+use serde::de::{Visitor, SeqAccess};
 use anyhow::Result;
 use tch::nn::{ModuleT, OptimizerConfig, VarStore};
 use tch::TrainableCModule;
-use tch::{CModule, Device};
+use tch::{Device};
 use std::fmt;
+
+fn pieces_in_row(board: &Connect4, pos: [usize;2], dir: [i32;2], player: Player) -> u32 {
+    let mut k = 1;
+    while board.in_board(pos[0] as i32+dir[0] as i32*k, pos[1] as i32+dir[1] as i32*k) 
+        && board.get((pos[0] as i32+dir[0]*k) as usize, (pos[1] as i32+dir[1]*k) as usize) == player as u8 {
+        k += 1;
+    }
+    k as u32 - 1
+}
 
 #[typetag::serde(tag = "type")]
 pub trait Evaluator {
+
+    // the estimated value at the position 'board'.
+    // it must always return -infinity on loss and +infinity on win.    
     fn value(&self, board: &Connect4, player: Player) -> f64;
-    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64>;
-    //fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64>;
-    //fn apply_update(&mut self, change: Vec<f64>);
+
+    // Useful when the evaluator is better at computing values in batch, for example a neural network.
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+        let mut vs = Vec::with_capacity(boards.len());
+        for board in boards {
+            vs.push(self.value(board, player));
+        }
+        vs
+    }
+
     fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64);
     fn get_params(&self) -> Vec<f64>;
 }
@@ -22,7 +41,6 @@ pub trait Evaluator {
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct SimpleEval {
 }
-
 
 impl SimpleEval {
     pub fn new() -> SimpleEval {
@@ -35,7 +53,6 @@ impl Evaluator for SimpleEval {
     fn value(&self, board: &Connect4, player: Player) -> f64 {
         match board.game_state {
             GameState::Won(p) => {
-                //if p == self.player {1./0.} else {-1./0.}
                 if p == player {1.0 as f64} else {-1.0 as f64}
             },
             GameState::Draw => 0.0,
@@ -44,34 +61,12 @@ impl Evaluator for SimpleEval {
             },
         }
     }
-    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
-        let mut v = Vec::with_capacity(boards.len());
-        for board in boards {
-            v.push(self.value(&board, player));
-        }
-        v
-    }
-    /*fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
-        unimplemented!()
-    }
-    fn apply_update(&mut self, change: Vec<f64>) {
-        unimplemented!()
-    }*/
-    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
+    fn update(&mut self, _board: &Connect4, _player: Player, _target_av: f64, _learning_rate: f64) {
         unimplemented!()
     }
     fn get_params(&self) -> Vec<f64> {
         unimplemented!()
     }
-}
-
-fn pieces_in_row(board: &Connect4, pos: [usize;2], dir: [i32;2], player: Player) -> u32 {
-    let mut k = 1;
-    while board.in_board(pos[0] as i32+dir[0] as i32*k, pos[1] as i32+dir[1] as i32*k) 
-        && board.get((pos[0] as i32+dir[0]*k) as usize, (pos[1] as i32+dir[1]*k) as usize) == player as u8 {
-        k += 1;
-    }
-    k as u32 - 1
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -82,11 +77,9 @@ pub struct LinesEval {
 #[typetag::serde]
 impl Evaluator for LinesEval {
     fn value(&self, board: &Connect4, player: Player) -> f64 {
-        //println!("LinesEval.value()");
         match board.game_state {
             GameState::Won(p) => {
                 if p == player {1./0.} else {-1./0.}
-                //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {
@@ -94,20 +87,7 @@ impl Evaluator for LinesEval {
             },
         }
     }
-    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
-        let mut v = Vec::with_capacity(boards.len());
-        for board in boards {
-            v.push(self.value(&board, player));
-        }
-        v
-    }
-    /*fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
-        unimplemented!()
-    }
-    fn apply_update(&mut self, change: Vec<f64>) {
-        unimplemented!()
-    }*/
-    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
+    fn update(&mut self, _board: &Connect4, _player: Player, _target_av: f64, _learning_rate: f64) {
         unimplemented!()
     }
     fn get_params(&self) -> Vec<f64> {
@@ -128,7 +108,6 @@ impl LinesEval {
         let directions = [[1, 0],[0, 1], [1,1]];
         //iterates over the first row and the first column.
         for (r,c) in (0..connect4::BOARD_HEIGHT).map(|r|(r,0)).chain((0..connect4::BOARD_HEIGHT).map(|c|(0,c))) {
-            //println!("{:?}", (r,c));
             for dir in directions {
                 let mut line = Vec::with_capacity(connect4::BOARD_WIDTH); 
                 let mut k = 0;
@@ -143,7 +122,6 @@ impl LinesEval {
                     });
                     k += 1;
                 }
-                //println!("line={:?}", line);
                 total += self.line_value(&line, player);
             }
         }
@@ -154,7 +132,6 @@ impl LinesEval {
         let mut last_opponent: i32 = -1;
         let mut count: u32 = 0;
         let mut totv = 0.0;
-        //println!("{:?}", v);
         for i in 0..v.len() {
             match v[i] {
                 TileStates::Empty => {
@@ -165,7 +142,6 @@ impl LinesEval {
                         last_opponent = i as i32;
                         count = 0;
                     } else {
-                        //println!("added to count");
                         count += 1;
                     }
                 }
@@ -188,40 +164,21 @@ pub struct ConsequtiveEval {
 #[typetag::serde]
 impl Evaluator for ConsequtiveEval {
     fn value(&self, board: &Connect4, player: Player) -> f64 {
-        //println!("ConsequtiveEval.value()");
         match board.game_state {
             GameState::Won(p) => {
                 if p == player {1./0.} else {-1./0.}
-                //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {
-                //self.lines_evaluation(board)
                 let features = self.features(board, player);
                 let mut tot = 0.0;
                 for (f, v) in features.iter().zip(self.params.iter()) {
                     tot += *f as f64*v;
                 } 
-                //println!("{:?}", tot);
                 tot
             },
         }
     }
-    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
-        let mut v = Vec::with_capacity(boards.len());
-        for board in boards {
-            v.push(self.value(&board, player));
-        }
-        v
-    }
-    /*fn apply_update(&mut self, change: Vec<f64>) {
-        for i in 0..change.len() {
-            self.params[i] += change[i];
-        }
-    }
-    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
-        self.features(board, player)
-    }*/
     fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
         let features = self.features(board, player);
         let mut av = 0.0;
@@ -258,9 +215,6 @@ impl ConsequtiveEval {
                     let a = pieces_in_row(board, [x,y], dir, player);
                     let b = pieces_in_row(board, [x,y], [-dir[0], -dir[1]], player);
                     let l = 3.min(a+b);
-                    /*if l == 3 {
-                        println!("{:?} {:?}, {}, {}", [x,y], dir, a,b);
-                    }*/
                     if l >= 1 {
                         f[l as usize-1] += 1;
                     }
@@ -284,7 +238,6 @@ impl ConsequtiveEval {
         }
         let mx = 10.0;
         f.iter().map(|x| mx*(1.0-(-x as f64/mx).exp())).collect()
-        //f.iter().map(|x| *x as f64).collect()
     }
 }
 
@@ -357,7 +310,6 @@ impl Evaluator for CNNEval {
         match board.game_state {
             GameState::Won(p) => {
                 if p == player {1./0.} else {-1./0.}
-                //if p == self.player {1.0/board.actions.len() as f64} else {-1.0/board.actions.len() as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {
@@ -365,7 +317,7 @@ impl Evaluator for CNNEval {
                 let tensor = unsafe {
                     let ptr = vectorized_board.as_ptr();
                     let t = tch::Tensor::of_blob(
-                        (ptr as *const u8), 
+                        ptr as *const u8, 
                         &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
                         &[0, 0, connect4::BOARD_WIDTH as i64, 1],
                         tch::Kind::Double,
@@ -404,7 +356,6 @@ impl Evaluator for CNNEval {
             for i in 0..boards.len() {
                 out.push(*(data_ptr as *const f64).add(i));
             }
-            //*(data_ptr as *const f64)
         }
         out
     }
@@ -415,7 +366,7 @@ impl Evaluator for CNNEval {
         let tensor = unsafe {
             let ptr = vectorized_board.as_ptr();
             let t = tch::Tensor::of_blob(
-                (ptr as *const u8), 
+                ptr as *const u8, 
                 &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
                 &[0, 0, connect4::BOARD_WIDTH as i64, 1],
                 tch::Kind::Double,
@@ -428,7 +379,7 @@ impl Evaluator for CNNEval {
         let target = unsafe {
             let ptr = targetv.as_ptr();
             tch::Tensor::of_blob(
-                (ptr as *const u8), 
+                ptr as *const u8, 
                 &[1], 
                 &[0],
                 tch::Kind::Double,

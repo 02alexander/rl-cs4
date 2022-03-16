@@ -8,16 +8,14 @@ extern crate fastrand;
 extern crate serde_json;
 extern crate gamesolver;
 
-use gamesolver::connect4::{Connect4, Player, BOARD_HEIGHT, BOARD_WIDTH, GameState, Action};
-use gamesolver::evaluators::{Evaluator, SimpleEval, LinesEval, ConsequtiveEval, CNNEval};
-use gamesolver::search::*;
-use gamesolver::agents::{BatchMinimaxAgent, MinimaxAgent, MinimaxPolicyAgent};
+use gamesolver::connect4::{Connect4, Player, GameState, Action};
+use gamesolver::evaluators::{Evaluator, SimpleEval, CNNEval};
+use gamesolver::agents::{MinimaxPolicyAgent};
 use std::io::{self, BufRead};
 use gamesolver::matchmaker::{Agent, MatchMaker};
 use gamesolver::connect4;
 use gamesolver::qlearning::{QLearning, RL};
-use gamesolver::policies::{EpsilonGreedy, Greedy};
-use serde::{Serialize, Deserialize};
+use gamesolver::policies::{EpsilonGreedy};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -120,77 +118,15 @@ fn mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
     ((vyellow-1.0)*(vyellow-1.0)+(vred+1.0)*(vred+1.0))/2.0
 }
 
-fn test_cnneval() {
-    /*let v: Vec<f32> = vec![1., 2., 3., 4., 5., 6., 7., 8.];
-    let tensor = unsafe {
-        let mut t = tch::Tensor::of_blob(
-            v.as_ptr() as *const u8,
-            &[1,2,2,2], 
-            &[0,4,2,1],
-            tch::Kind::Float,
-            tch::Device::Cpu
-        );
-        //t
-        tch::Tensor::clone_from_ptr(t.as_mut_ptr())
-    };
-    tensor.print();
-    */
-
-    let mut board = Connect4::new();
-    let moves = vec![5, 4, 6, 4];
-    for mv in moves {
-        board.play_move(mv);
-    }
-    println!("{:?}", board);
-    let v = board.vectorize(Player::Red);
-    for i in 0..v.len() {
-        print!("{:2.} ", v[i]);
-        if i%connect4::BOARD_WIDTH==connect4::BOARD_WIDTH-1 {
-            println!("");
-        }
-    }
-
-    let mut evaluator = CNNEval::new(String::from("models/model.pt"));
-    for i in 0..100 {
-        let v = evaluator.value(&board, Player::Red);
-        println!("{:?}", v);
-        evaluator.update(&board, Player::Red, 1.0, 0.001);
-    }
-}
-
-fn test_evaluator(eval: &dyn Evaluator) {
-    let mut board = Connect4::new();
-    let moves = vec![5, 4, 6, 4];
-    for mv in moves {
-        board.play_move(mv);
-    }
-    println!("{:?}", board);
-    let v = board.vectorize(Player::Red);
-    for i in 0..v.len() {
-        print!("{:2.} ", v[i]);
-        if i%connect4::BOARD_WIDTH==connect4::BOARD_WIDTH-1 {
-            println!("");
-        }
-    }
-    let v = eval.value(&board, Player::Red);
-    println!("{:?}", v);
-
-}
-
-fn get_move_from_minimax<T: Evaluator>(board: &Connect4, evaluator: &T, player: Player) -> Action {
-    //abpruning_best_action(board, 8, evaluator, player)
-    batch_abnegamax_best_action(board, 5, 5, evaluator, player)
-}
-
 // returns (action, is_reverse)
 fn get_move_from_user(board: &Connect4) -> (Action, bool) {
-    let mut stdin = io::stdin();
+    let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
         if line.as_bytes()[0] == 'z' as u8 {
             return (0, true);
         } else if let Ok(a) = line.parse::<usize>() {
-            if a >= 0 && a < connect4::BOARD_WIDTH {
+            if a < connect4::BOARD_WIDTH {
                 if !board.is_valid_move(a) {
                     println!("Column alread full");
                     continue;
@@ -206,9 +142,8 @@ fn get_move_from_user(board: &Connect4) -> (Action, bool) {
     panic!("Failed to get input from user");
 }
 
-fn user_vs_user() {
+fn _user_vs_user() {
     let mut board = Connect4::new();
-    let evaluator = SimpleEval::new();
     let mut last_action = 0;
     loop {
         println!("{:?}", board);

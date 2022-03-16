@@ -1,6 +1,5 @@
 
-use crate::connect4::{Connect4, Player, Action, GameState, TileStates};
-use crate::connect4;
+use crate::connect4::{Connect4, Player, Action, GameState};
 
 pub trait Agent {
     fn get_action(&self, board: &Connect4, player: Player) -> Action;
@@ -8,9 +7,8 @@ pub trait Agent {
 
 
 pub struct MatchMaker<'a> {
-    agents: Vec<&'a dyn Agent>,
+    agents: Vec<&'a dyn Agent>, // Currently only works with 2 agents.
     hist: Vec<(usize, usize, GameState)>, // (idx of red agent, idx of yellow agent, result)
-    last_game: Vec<Action>,
 }
 
 impl<'a> MatchMaker<'a> {
@@ -18,7 +16,6 @@ impl<'a> MatchMaker<'a> {
         MatchMaker {
             agents: Vec::new(),
             hist: Vec::new(),
-            last_game: Vec::new(),
         }
     }
 
@@ -33,13 +30,13 @@ impl<'a> MatchMaker<'a> {
     // plays n games between the agents and records the results in self.hist
     pub fn play_n_games(&mut self, n: u32) {
         assert_eq!(self.agents.len(), 2);
-        for i in 0..n {
+        for _ in 0..n {
             let idxagents = if fastrand::bool() {
                 [0,1]
             } else {
                 [1,0]
             };
-            let mut end_board = play_game(&*self.agents[idxagents[0]], &*self.agents[idxagents[1]]);
+            let end_board = play_game(&*self.agents[idxagents[0]], &*self.agents[idxagents[1]]);
             
             self.hist.push((idxagents[0], idxagents[1], end_board.last().unwrap().game_state));
         }
@@ -148,6 +145,8 @@ fn movmean(v: &Vec<f64>, n: usize) -> Vec<f64> {
 }
 
 // returns the board after every move. which means that it excludes starting position but includes end position.
+// p1 always starts.
+// p1 is Player::Red, p2 is Player::Yellow.
 pub fn play_game(p1: &dyn Agent, p2: &dyn Agent) -> Vec<Connect4> {
     let mut boards = Vec::new();
     let mut board = Connect4::new();

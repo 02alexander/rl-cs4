@@ -34,9 +34,6 @@ pub enum GameState {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Connect4 {
-    //pub board: Vec<Vec<TileStates>>,
-    //pub board: Vec<TileStates>,
-
     // tile on board takes up 2 bits, 0 for empty, 1 for red, 2 for yellow. 
     // starts in bottom left corner and goes row by row.
     pub board: u128,
@@ -57,14 +54,13 @@ impl ops::Not for Player {
 impl Connect4 {
     pub fn new() -> Self {
         Connect4 {
-            //board: vec![vec![TileStates::Empty; BOARD_HEIGHT];BOARD_WIDTH], // board[x][y] where x,y=(0,0) is the bottom left corner.
-            //board: vec![TileStates::Empty; BOARD_HEIGHT*BOARD_WIDTH],
             board: 0,
             cur_player: Player::Red,
             game_state: GameState::InProgress,
         }
     }
 
+    // Plays action for player self.cur_player
     pub fn play_move(&mut self, action: Action) {
         assert_eq!(self.game_state, GameState::InProgress);
         if !self.is_valid_move(action) {
@@ -82,6 +78,7 @@ impl Connect4 {
         self.cur_player = !self.cur_player;
     }
 
+    // Reverses last action if the last action is last_action.
     pub fn reverse_last_action(&mut self, last_action: Action) {
         let ap = self.pos_from_action(last_action);
         self.set(ap[0],ap[1],0);
@@ -91,11 +88,7 @@ impl Connect4 {
 
     pub fn player_won(&self, piece_pos: [usize; 2]) -> bool {
         let directions: [[i32;2];4] = [[1,0],[0,1],[-1,1], [1,1]];
-        let player = if let p = self.get(piece_pos[0],piece_pos[1]) {
-            p
-        } else {
-            panic!("player_won() passed piece_pos with empty square");
-        };
+        let player = self.get(piece_pos[0],piece_pos[1]);
         for direction in directions {
             let mut sm = 1;
             for i in 1..4 {
@@ -198,8 +191,8 @@ impl Connect4 {
     pub fn vectorize(&self, player: Player) -> Vec<f64> {
         let mut v = Vec::with_capacity(BOARD_WIDTH*BOARD_HEIGHT);
         let mut board = self.board;
-        for x in 0..BOARD_WIDTH {
-            for y in 0..BOARD_HEIGHT {
+        for _ in 0..BOARD_WIDTH {
+            for _ in 0..BOARD_HEIGHT {
                 let cur = board as u8 & 3;
                 if cur == player as u8 {
                     v.push(1.0);
@@ -209,30 +202,15 @@ impl Connect4 {
                     v.push(0.0);
                 }
                 board >>= 2;
-                /*if self.get(x,y) == player as u8 {
-                    v.push(1.0);
-                } else if self.get(x,y) == !player as u8 {
-                    v.push(-1.0);
-                } else {
-                    v.push(0.0);
-                }*/
             }
         }
         v
     }
 
     pub fn set(&mut self, x: usize, y: usize, v: u8) {
-
-        /*let m = match v {
-            TileStates::Empty => 0,
-            TileStates::Full(Player::Red) => 1,
-            TileStates::Full(Player::Yellow) => 2
-        };*/
-        let k = (2*(x+y*BOARD_WIDTH));
+        let k = 2*(x+y*BOARD_WIDTH);
         let mask = 3 << k;
         self.board = (self.board & (!mask)) + ((v as u128) << k);
-        //let prev_m = 3 & (self.board >> (2*(x+y*BOARD_WIDTH)));
-        //self.board = self.board ^ ( self.board >> (2*(x+y*BOARD_WIDTH)) );
     }
 
     pub fn get(&self, x: usize, y:usize) -> u8 {
@@ -240,23 +218,6 @@ impl Connect4 {
     }
 }
 
-/*
-impl std::ops::Index<[usize;2]> for Connect4 {
-    type Output = TileStates;
-    // idx: [x,y]
-    fn index(&self, idx: [usize;2]) -> &Self::Output {
-        //&self.board[idx[0]][idx[1]]
-
-        &self.board[ idx[0]+idx[1]*BOARD_WIDTH]
-    }
-}
-
-impl std::ops::IndexMut<[usize;2]> for Connect4 {
-    fn index_mut(&mut self, idx: [usize;2]) -> &mut Self::Output {
-        //&mut self.board[idx[0]][idx[1]]
-        &mut self.board[ idx[0]+idx[1]*BOARD_WIDTH]
-    }
-}*/
 
 impl fmt::Debug for Connect4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -329,54 +290,3 @@ mod test {
         assert_eq!(old_board.board, board.board);
     }
 }
-
-
-/*
-mod bench_indexing {
-    use crate::test::{black_box, Bencher};
-    use super::*;
-
-    #[bench]
-    fn bench_indexing_vec_of_vec(b: &mut Bencher) {
-        let v: Vec<Vec<i32>> = vec![ vec![1, 2,3],vec![0,1,2],vec![1,3,4]];
-        let x = black_box(1);
-        let y = black_box(1);
-        b.iter(|| {
-            (0..100).fold(0, |_,_| black_box(v[x][y]))
-        });
-    }
-
-    #[bench]
-    fn bench_indexing_long_vec(b: &mut Bencher) {
-        let v: Vec<i32> = vec![1,2,3,0,1,2,1,3,4];
-        let x = black_box(1);
-        let y = black_box(1);
-        b.iter(|| {
-            (0..100).fold(0, |_,_| black_box(v[x+3*y]))
-            //(0..1000).fold(0, |_,_| black_box(0))
-        });
-    }
-}
-
-mod bench_connect4 {
-    use crate::test::{black_box, Bencher};
-    use super::*;
-    #[bench]
-    fn in_board(b: &mut Bencher) {
-        let mut board = Connect4::new();
-        let x = black_box(3);
-        let y = black_box(4);
-        b.iter(|| {
-            (0..100).fold(false, |_,_| black_box(board.in_board(x, y)))
-        });
-    }
-    #[bench]
-    fn valid_moves(b: &mut Bencher) {
-        let mut board = Connect4::new();
-        let x = black_box(3);
-        let y = black_box(4);
-        b.iter(|| {
-            (0..100).fold(Vec::new(), |_,_| black_box(board.valid_moves()))
-        });
-    }
-}*/

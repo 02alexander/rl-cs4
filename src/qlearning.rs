@@ -1,17 +1,23 @@
 
-use crate::evaluators::{Evaluator, ConsequtiveEval, LinesEval};
-use crate::connect4::{Connect4, Player, N_ACTIONS, Action, GameState};
+use crate::evaluators::{Evaluator};
+use crate::connect4::{Connect4, Player, GameState};
 use crate::policies::Policy;
 use crate::matchmaker::{Agent, play_game};
-use crate::search::{abpruning_value, batch_negamax};
-use crate::agents::{BatchMinimaxAgent, MinimaxAgent, MinimaxPolicyAgent};
+use crate::search::{batch_negamax};
+use crate::agents::{BatchMinimaxAgent, MinimaxPolicyAgent};
 use serde::{Serialize, Deserialize};
 
 #[typetag::serde(tag = "type")]
 pub trait RL {
+    // Update all states in game_hist where board.cur_player == 'player'
     fn update(&mut self, game_hist: &Vec<Connect4>, player: Player);
+
+    // Learns from playing against self.
     fn self_play(&mut self);
+
+    // Learns from playing against opponent.
     fn play_against(&mut self, opponent: &dyn Agent);
+    
     fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator;
     fn get_policy<'a>(&'a self) -> &'a dyn Policy;
 }
@@ -41,9 +47,9 @@ impl QLearning {
 #[typetag::serde]
 impl RL for QLearning {
     
-    // Applies updates from game_hist where self is 'player'
     fn update(&mut self, game_hist: &Vec<Connect4>, player: Player) {
 
+        // states where the board.cur_player is 'player'
         let mut states = Vec::with_capacity(game_hist.len()/2+1);
         for board in game_hist {
             if board.cur_player == player {
@@ -51,10 +57,7 @@ impl RL for QLearning {
             }
         }
         for i in 0..(states.len()-1) {
-            //let grad = self.evaluator.gradient(&states[i], player);
-            
             let next_state = &states[i+1];
-            let actions = next_state.valid_moves();
             let target_av = if i == states.len()-2 {
                 match game_hist.last().unwrap().game_state {
                     GameState::Won(p) => {
@@ -71,11 +74,11 @@ impl RL for QLearning {
                         panic!("last state is in progress")
                     }
                 }
-                //self.evaluator.value(&next_state, player)
             } else {
 
-                //let v = abpruning_value(&next_state, self.depth, &*self.evaluator, player);
                 let v = batch_negamax(&next_state, self.depth, &*self.evaluator, player);
+
+                // The reward is baked into the target action value.
                 if v == 1./0. {
                     1.0
                 } else if v == -1./0. {
@@ -85,21 +88,19 @@ impl RL for QLearning {
                 }
             };
             
+            // alternative to letting Evaluator update itself.
             //let current_av = self.evaluator.value(&states[i], player);
             //let deltas = grad.iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
             //self.evaluator.apply_update(deltas);
+
             self.evaluator.update(&states[i].symmetry(), player, self.discount*target_av, self.step_size);
             self.evaluator.update(&states[i], player, self.discount*target_av, self.step_size);
         }
     }
 
     fn self_play(&mut self) {
-        //let mut agenta = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
-        let mut agenta = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
-        //agenta.set_player(Player::Red);
-        //let mut agentb = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
-        let mut agentb = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
-        //agentb.set_player(Player::Yellow);
+        let agenta = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
+        let agentb = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
         let game_hist = play_game(&agenta, &agentb);
         self.update(&game_hist, Player::Red);
         self.update(&game_hist, Player::Yellow);
