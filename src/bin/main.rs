@@ -29,12 +29,34 @@ struct Cli {
 enum Commands {
     Create {
         ai_file: String,
+
+        /// File containing libtorch model if you want to create for example a CNN evaluator. 
         model_file: Option<String>
     },
-    Train { 
+    SelfPlay { 
+        /// AI that is to be trained.
         ai_file: String,
+        #[clap(default_value_t=20)]
         iterations: u32
     },
+    TrainAgainst {
+        /// AI that is to be trained.
+        ai_file: String,
+
+        opponent_file: String,
+
+        #[clap(short, long, default_value_t=20)]
+        iterations: u32,
+
+        #[clap(short, long)]
+        /// Print which iteration it's on.
+        progress: bool,
+
+        #[clap(short, long)]
+        /// Print the score of every game at the end.
+        scores: bool,
+    },
+    /// Lets user play a game against the AI.
     Play {
         ai_file: String
     },
@@ -74,11 +96,27 @@ fn main() {
                 std::fs::write(ai_file, &serialized_ai).unwrap();
             }
         },
-        Commands::Train {ai_file, iterations} => {
+        Commands::SelfPlay {ai_file, iterations} => {
             let mut ai: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
             for i in 0..iterations {
                 println!("iteration: {}", i);
                 ai.self_play();
+            }
+            let serialized_ai = serde_json::to_string(&ai).unwrap();
+            std::fs::write(ai_file, &serialized_ai).unwrap();
+        }
+        Commands::TrainAgainst { ai_file, opponent_file, iterations, progress, scores} => {
+            let mut ai: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
+            let opponent: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&opponent_file).expect("valid file")).expect("json of RL");
+            for i in 0..iterations {
+                if progress {
+                    println!("iteration: {}", i);
+                }
+                let opponent = MinimaxPolicyAgent::new(opponent.get_evaluator(), opponent.get_policy(), opponent.get_depth());
+                ai.play_against(&opponent);
+            }
+            if scores {
+                println!("{:?}", ai.scores().unwrap());
             }
             let serialized_ai = serde_json::to_string(&ai).unwrap();
             std::fs::write(ai_file, &serialized_ai).unwrap();
@@ -99,7 +137,6 @@ fn main() {
             mm.play_n_games(nb_games);
             println!("{:?}", mm.scores());
         }   
-
     }
 }
 

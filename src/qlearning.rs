@@ -7,6 +7,7 @@ use crate::search::{batch_negamax};
 use crate::agents::{BatchMinimaxAgent, MinimaxPolicyAgent};
 use serde::{Serialize, Deserialize};
 
+
 #[typetag::serde(tag = "type")]
 pub trait RL {
     // Update all states in game_hist where board.cur_player == 'player'
@@ -20,16 +21,24 @@ pub trait RL {
     
     fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator;
     fn get_policy<'a>(&'a self) -> &'a dyn Policy;
+    fn get_depth(&self) -> u32;
+    fn scores(&self) -> Option<&Vec<f64>> {
+        None
+    }
 }
 
 
 #[derive(Serialize, Deserialize)]
 pub struct QLearning {
     evaluator: Box<dyn Evaluator>,
-    exploration_policy: Box<dyn Policy>, // exploration policy
+    exploration_policy: Box<dyn Policy>,
     pub step_size: f64,
     pub discount: f64,
     pub depth: u32, // depth to search during training.
+
+    // Stores scores when training against an opponent. 
+    // Useful when measuring performance of algorithm.
+    scores: Vec<f64>,
 }
 
 impl QLearning { 
@@ -40,6 +49,7 @@ impl QLearning {
             step_size,
             discount: 1.0,
             depth: 4,
+            scores: Vec::new(),
         }
     }
 }
@@ -116,10 +126,14 @@ impl RL for QLearning {
         let end_state = game_hist.last().unwrap();
         if let GameState::Won(pl) = end_state.game_state {
             if pl == selfp {
-                println!("won");
+                // won
+                self.scores.push(1.0);
             } else {
-                println!("lost");
+                // lost
+                self.scores.push(-1.0);
             }
+        } else {
+            self.scores.push(0.0);
         }
         self.update(&game_hist, selfp);
     }
@@ -129,6 +143,12 @@ impl RL for QLearning {
     }
     fn get_policy<'a>(&'a self) -> &'a dyn Policy {
         &*self.exploration_policy
+    }
+    fn get_depth(&self) -> u32 {
+        self.depth
+    }
+    fn scores(&self) -> Option<&Vec<f64>> {
+        Some(&self.scores)
     }
 }
 
