@@ -1,7 +1,3 @@
-//#![feature(test)]
-//extern crate test;
-
-
 extern crate serde;
 extern crate clap;
 extern crate fastrand;
@@ -36,8 +32,15 @@ enum Commands {
     SelfPlay { 
         /// AI that is to be trained.
         ai_file: String,
-        #[clap(default_value_t=20)]
-        iterations: u32
+        #[clap(short, long, default_value_t=20)]
+        iterations: u32,
+
+        #[clap(short, long)]
+        /// Print which iteration it's on.
+        progress: bool,
+        
+        #[clap(short, long)]
+        reference_ai: Option<String>,
     },
     TrainAgainst {
         /// AI that is to be trained.
@@ -96,11 +99,40 @@ fn main() {
                 std::fs::write(ai_file, &serialized_ai).unwrap();
             }
         },
-        Commands::SelfPlay {ai_file, iterations} => {
+        Commands::SelfPlay {ai_file, iterations, progress, reference_ai} => {
             let mut ai: Box<dyn RL> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
+            let ref_ai: Option<Box<dyn RL>> = if let Some(ref_ai_file) = reference_ai {
+                Some(serde_json::from_str(&std::fs::read_to_string(&ref_ai_file).expect("valid file")).expect("json of RL"))
+            } else {
+                None
+            };
+            let mut scores: Vec<f64> = Vec::new();
             for i in 0..iterations {
-                println!("iteration: {}", i);
+                if progress {
+                    println!("iteration: {}", i);
+                }
                 ai.self_play();
+                if let Some (ref ref_ai) = ref_ai {
+                    let selfagent = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 3);
+                    let refagent = MinimaxPolicyAgent::new(ref_ai.get_evaluator(), ref_ai.get_policy(), 3);
+                    let b = fastrand::bool();
+                    let result = if b {
+                        gamesolver::matchmaker::play_game(&selfagent, &refagent).last().unwrap().game_state
+                    } else {
+                        gamesolver::matchmaker::play_game(&refagent, &selfagent).last().unwrap().game_state
+                    };
+                    let score = match result {
+                        GameState::Won(Player::Red) => 1.0,
+                        GameState::Won(Player::Yellow) => -1.0,
+                        GameState::Draw => 0.0,
+                        GameState::InProgress => panic!("Game ended while still in progress.")
+                    };
+                    let score = if b {score} else {-score};
+                    scores.push(score);
+                }
+            }
+            if scores.len() != 0 {
+                println!("{:?}", scores);
             }
             let serialized_ai = serde_json::to_string(&ai).unwrap();
             std::fs::write(ai_file, &serialized_ai).unwrap();

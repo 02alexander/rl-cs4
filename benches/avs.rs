@@ -72,7 +72,7 @@ fn cnn_eval_forward(c: &mut Criterion) {
     }));
 }
 
-fn cnn_eval_forward_1000(c: &mut Criterion) {
+fn cnn_eval_forward_no_grad(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
@@ -80,22 +80,79 @@ fn cnn_eval_forward_1000(c: &mut Criterion) {
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
-    let mut vectorized_boards = Vec::with_capacity(6*7*100);
-    for i in 0..1000 {
+    let vectorized_board = board.vectorize(p);
+    let tensor = unsafe {
+        let ptr = vectorized_board.as_ptr();
+        let t = tch::Tensor::of_blob(
+            ptr as *const u8, 
+            &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+            &[0, 0, connect4::BOARD_WIDTH as i64, 1],
+            tch::Kind::Double,
+            tch::Device::Cpu,
+        );
+        t
+    };
+    c.bench_function("CNNEval:forward_nograd", |b| b.iter(||{
+        let _guard = tch::no_grad_guard();
+        black_box(evaluator.model.forward_t(&tensor, true))
+    }));
+}
+
+fn cnn_eval_forward_100(c: &mut Criterion) {
+    let n = 100;
+    let mut board = Connect4::new();
+    let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
+    for action in actions {
+        board.play_move(action);
+    }
+    let p = board.cur_player;
+    let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
+    let mut vectorized_boards = Vec::with_capacity(6*7*n);
+    for i in 0..n {
         vectorized_boards.append(&mut board.vectorize(p));
     }
     let tensor = unsafe {
         let ptr = vectorized_boards.as_ptr();
         let t = tch::Tensor::of_blob(
             ptr as *const u8, 
-            &[1000,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+            &[n as i64,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
             &[connect4::BOARD_HEIGHT as i64*connect4::BOARD_WIDTH as i64, connect4::BOARD_HEIGHT as i64*connect4::BOARD_WIDTH as i64, connect4::BOARD_WIDTH as i64, 1],
             tch::Kind::Double,
             tch::Device::Cpu,
         );
         t
     };
-    c.bench_function("CNNEval:forward_1000", |b| b.iter(||{
+    c.bench_function("CNNEval:forward_100", |b| b.iter(||{
+        black_box(evaluator.model.forward_t(&tensor, true))
+    }));
+}
+
+fn cnn_eval_forward_100_no_grad(c: &mut Criterion) {
+    let n = 100;
+    let mut board = Connect4::new();
+    let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
+    for action in actions {
+        board.play_move(action);
+    }
+    let p = board.cur_player;
+    let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
+    let mut vectorized_boards = Vec::with_capacity(6*7*n);
+    for i in 0..n {
+        vectorized_boards.append(&mut board.vectorize(p));
+    }
+    let tensor = unsafe {
+        let ptr = vectorized_boards.as_ptr();
+        let t = tch::Tensor::of_blob(
+            ptr as *const u8, 
+            &[n as i64,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+            &[connect4::BOARD_HEIGHT as i64*connect4::BOARD_WIDTH as i64, connect4::BOARD_HEIGHT as i64*connect4::BOARD_WIDTH as i64, connect4::BOARD_WIDTH as i64, 1],
+            tch::Kind::Double,
+            tch::Device::Cpu,
+        );
+        t
+    };
+    c.bench_function("CNNEval:forward_nograd_100", |b| b.iter(||{
+        let _guard = tch::no_grad_guard();
         black_box(evaluator.model.forward_t(&tensor, true))
     }));
 }
@@ -148,10 +205,12 @@ criterion_group!(
     lines_eval_benchmark, 
     search_benchmark, 
     cnn_eval_benchmark,
+    cnn_eval_forward_no_grad,
+    cnn_eval_forward_100_no_grad,
     cnn_eval_forward,
-    cnn_eval_forward_1000,
+    cnn_eval_forward_100,
     cnn_search,
-    cnn_search_batch
+    cnn_search_batch,
 );
 //criterion_group!(benches, cnn_eval_benchmark);
 criterion_main!(benches);
