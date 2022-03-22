@@ -4,3 +4,5 @@
 *.data
 /__pycache__
 /mod_cnneval
+*.png
+Cargo.lock

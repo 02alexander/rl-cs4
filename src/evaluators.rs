@@ -34,7 +34,9 @@ pub trait Evaluator {
         vs
     }
 
-    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64);
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64>;
+    fn apply_update(&mut self, update: &[f64]);
+    //fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64);
     fn get_params(&self) -> Vec<f64>;
 }
 
@@ -61,9 +63,15 @@ impl Evaluator for SimpleEval {
             },
         }
     }
-    fn update(&mut self, _board: &Connect4, _player: Player, _target_av: f64, _learning_rate: f64) {
+    fn gradient(&self, _board: &Connect4, _player: Player) -> Vec<f64> {
         unimplemented!()
     }
+    fn apply_update(&mut self, _update: &[f64]) {
+        unimplemented!()
+    }
+    /*fn update(&mut self, _board: &Connect4, _player: Player, _target_av: f64, _learning_rate: f64) {
+        unimplemented!()
+    }*/
     fn get_params(&self) -> Vec<f64> {
         unimplemented!()
     }
@@ -87,7 +95,10 @@ impl Evaluator for LinesEval {
             },
         }
     }
-    fn update(&mut self, _board: &Connect4, _player: Player, _target_av: f64, _learning_rate: f64) {
+    fn gradient(&self, _board: &Connect4, _player: Player) -> Vec<f64> {
+        unimplemented!()
+    }
+    fn apply_update(&mut self, _update: &[f64]) {
         unimplemented!()
     }
     fn get_params(&self) -> Vec<f64> {
@@ -179,15 +190,12 @@ impl Evaluator for ConsequtiveEval {
             },
         }
     }
-    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
-        let features = self.features(board, player);
-        let mut av = 0.0;
-        for (f, v) in features.iter().zip(self.params.iter()) {
-            av += *f as f64*v;
-        } 
-        let deltas: Vec<f64> = features.iter().map(|g| g*(target_av-av)*learning_rate).collect();
-        for i in 0..deltas.len() {
-            self.params[i] += deltas[i];
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+        self.features(board, player)
+    }
+    fn apply_update(&mut self, update: &[f64]) {
+        for (p, d) in self.params.iter_mut().zip(update) {
+            *p += d;
         }
     }
     fn get_params(&self) -> Vec<f64> {
@@ -261,6 +269,114 @@ impl CNNEval {
     }
 }
 
+#[typetag::serde]
+impl Evaluator for CNNEval {
+    fn value(&self, board: &Connect4, player: Player) -> f64 {
+        match board.game_state {
+            GameState::Won(p) => {
+                if p == player {1./0.} else {-1./0.}
+            },
+            GameState::Draw => 0.0,
+            GameState::InProgress => {
+                let vectorized_board = board.vectorize(player);
+                let tensor = unsafe {
+                    let ptr = vectorized_board.as_ptr();
+                    let t = tch::Tensor::of_blob(
+                        ptr as *const u8, 
+                        &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+                        &[0, 0, connect4::BOARD_WIDTH as i64, 1],
+                        tch::Kind::Double,
+                        tch::Device::Cpu,
+                    );
+                    t
+                };
+                let v = self.model.forward_t(&tensor, true);
+                let data_ptr = v.data_ptr();
+                unsafe {
+                    *(data_ptr as *const f64)
+                }
+            },
+        }
+    }
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+        let mut vectorized_boards: Vec<f64> = Vec::with_capacity(42*boards.len());
+        for board in boards {
+            vectorized_boards.append(&mut board.vectorize(player));
+        }
+        let mut tensor = tch::Tensor::of_slice(&vectorized_boards);
+        let _ = tensor.resize_(&[boards.len() as i64,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64]);
+        let v = self.model.forward_t(&tensor, true);
+        let out: Vec<f64> = Vec::from(v);
+        out
+    }
+
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+        for var in self.vs.trainable_variables().iter_mut() {
+            var.zero_grad();
+        }
+        let mut tboard = tch::Tensor::of_slice(&board.vectorize(player));
+        let _ = tboard.resize_(&[1, 1, 6, 7]);
+        let _out = self.model.forward_t(&tboard, true);
+        _out.backward();
+        
+        let mut grad = Vec::new();
+        for var in self.vs.trainable_variables().iter() {
+            let mut v: Vec<f64> = Vec::from(var.grad());
+            grad.append(&mut v);
+        }
+        grad
+    }
+
+    fn apply_update(&mut self, update: &[f64]) {
+        let mut i = 0;
+        for var in self.vs.trainable_variables().iter_mut() {
+            let _guard = tch::no_grad_guard();
+            let size = var.size();
+            let n = size.iter().fold(1, |b, n| b*n);
+            let mut update_tensor = tch::Tensor::of_slice(&update[i..i+n as usize]);
+            let _ = update_tensor.resize_(&var.size());
+            i += n as usize;
+            let _ = var.f_add_(&update_tensor).unwrap();
+        }
+        assert_eq!(i, update.len());
+    }
+    /*
+    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
+        let mut optimizer = tch::nn::Sgd::default().build(&self.vs, learning_rate).unwrap();
+        self.model.set_train();
+        let vectorized_board = board.vectorize(player);
+        let tensor = unsafe {
+            let ptr = vectorized_board.as_ptr();
+            let t = tch::Tensor::of_blob(
+                ptr as *const u8, 
+                &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
+                &[0, 0, connect4::BOARD_WIDTH as i64, 1],
+                tch::Kind::Double,
+                tch::Device::Cpu,
+            );
+            t
+        };
+        let out = self.model.forward_t(&tensor, true);
+        let targetv = vec![target_av];
+        let target = unsafe {
+            let ptr = targetv.as_ptr();
+            tch::Tensor::of_blob(
+                ptr as *const u8, 
+                &[1], 
+                &[0],
+                tch::Kind::Double,
+                tch::Device::Cpu,
+            )
+        };
+        let loss = out.mse_loss(&target, tch::Reduction::Mean);
+        optimizer.backward_step(&loss);
+    }
+    */
+    fn get_params(&self) -> Vec<f64> {
+        unimplemented!()
+    }
+}
+
 impl Serialize for CNNEval {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
         where S: Serializer {
@@ -301,95 +417,5 @@ impl<'de> Visitor<'de> for ByteDataVisitor {
             model,
             vs,
         })
-    }
-}
-
-#[typetag::serde]
-impl Evaluator for CNNEval {
-    fn value(&self, board: &Connect4, player: Player) -> f64 {
-        match board.game_state {
-            GameState::Won(p) => {
-                if p == player {1./0.} else {-1./0.}
-            },
-            GameState::Draw => 0.0,
-            GameState::InProgress => {
-                let vectorized_board = board.vectorize(player);
-                let tensor = unsafe {
-                    let ptr = vectorized_board.as_ptr();
-                    let t = tch::Tensor::of_blob(
-                        ptr as *const u8, 
-                        &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
-                        &[0, 0, connect4::BOARD_WIDTH as i64, 1],
-                        tch::Kind::Double,
-                        tch::Device::Cpu,
-                    );
-                    t
-                };
-                let v = self.model.forward_t(&tensor, true);
-                let data_ptr = v.data_ptr();
-                unsafe {
-                    *(data_ptr as *const f64)
-                }
-            },
-        }
-    }
-    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
-        let mut vectorized_boards: Vec<f64> = Vec::with_capacity(42*boards.len());
-        for board in boards {
-            vectorized_boards.append(&mut board.vectorize(player));
-        }
-        let tensor = unsafe {
-            let ptr = vectorized_boards.as_ptr();
-            let t = tch::Tensor::of_blob(
-                ptr as *const u8, 
-                &[boards.len() as i64,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
-                &[(connect4::BOARD_HEIGHT*connect4::BOARD_WIDTH) as i64 , (connect4::BOARD_HEIGHT*connect4::BOARD_WIDTH) as i64, connect4::BOARD_WIDTH as i64, 1],
-                tch::Kind::Double,
-                tch::Device::Cpu,
-            );
-            t
-        };
-        let v = self.model.forward_t(&tensor, true);
-        let data_ptr = v.data_ptr();
-        let mut out = Vec::with_capacity(boards.len());
-        unsafe {
-            for i in 0..boards.len() {
-                out.push(*(data_ptr as *const f64).add(i));
-            }
-        }
-        out
-    }
-    fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64) {
-        let mut optimizer = tch::nn::Sgd::default().build(&self.vs, learning_rate).unwrap();
-        self.model.set_train();
-        let vectorized_board = board.vectorize(player);
-        let tensor = unsafe {
-            let ptr = vectorized_board.as_ptr();
-            let t = tch::Tensor::of_blob(
-                ptr as *const u8, 
-                &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
-                &[0, 0, connect4::BOARD_WIDTH as i64, 1],
-                tch::Kind::Double,
-                tch::Device::Cpu,
-            );
-            t
-        };
-        let out = self.model.forward_t(&tensor, true);
-        let targetv = vec![target_av];
-        let target = unsafe {
-            let ptr = targetv.as_ptr();
-            tch::Tensor::of_blob(
-                ptr as *const u8, 
-                &[1], 
-                &[0],
-                tch::Kind::Double,
-                tch::Device::Cpu,
-            )
-        };
-        let loss = out.mse_loss(&target, tch::Reduction::Mean);
-        optimizer.backward_step(&loss);
-    }
-    fn get_params(&self) -> Vec<f64> {
-        unimplemented!()
     }
 }

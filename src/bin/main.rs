@@ -73,7 +73,28 @@ enum Commands {
     }
 }
 
+fn _test_update() {
+    let mut eval = CNNEval::new("models/model.pt".to_owned());
+    let mut board = Connect4::new();
+    for action in vec![1,2,1,4,2,5,3] {
+        board.play_move(action);
+    }
+    for _ in 0..10000 {
+        let grad = eval.gradient(&board, !Player::Red);
+        let yhat = eval.value(&board, !Player::Red);
+        let y = 1.0;
+        let deltas: Vec<_> = grad.iter().map(|g| g*(y-yhat)*0.001).collect();
+        eval.apply_update(&deltas);
+        println!("{:.5}", (y-yhat).powf(2.0));
+    }
+    
+}
+
 fn main() {
+
+    //_test_update();
+
+    
 
     let args = Cli::parse();
 
@@ -170,9 +191,11 @@ fn main() {
             println!("{:?}", mm.scores());
         }   
     }
+
+    
 }
 
-fn mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
+fn _mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
     // good for yellow
     let actions = vec![4, 2, 3, 5, 5, 3, 5, 5, 6, 5, 6, 2, 6, 6, 6, 3, 6, 4];
     let mut board = Connect4::new();
@@ -181,8 +204,8 @@ fn mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
     }
     let vyellow = evaluator.value(&board, Player::Yellow);
     let vred = evaluator.value(&board, Player::Red);
-    //println!("vyellow={}", vyellow);
-    //println!("vred={}", vred);
+    println!("vyellow={:.5}", vyellow);
+    println!("vred=   {:.5}\n", vred);
 
     ((vyellow-1.0)*(vyellow-1.0)+(vred+1.0)*(vred+1.0))/2.0
 }

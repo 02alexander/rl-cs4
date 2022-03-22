@@ -98,13 +98,12 @@ impl RL for QLearning {
                 }
             };
             
-            // alternative to letting Evaluator update itself.
-            //let current_av = self.evaluator.value(&states[i], player);
-            //let deltas = grad.iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
-            //self.evaluator.apply_update(deltas);
-
-            self.evaluator.update(&states[i].symmetry(), player, self.discount*target_av, self.step_size);
-            self.evaluator.update(&states[i], player, self.discount*target_av, self.step_size);
+            for state in vec![states[i], &states[i].symmetry()] {
+                let grad: Vec<f64> = self.evaluator.gradient(state, player);
+                let current_av = self.evaluator.value(state, player);
+                let deltas: Vec<_> = grad.iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
+                self.evaluator.apply_update(&deltas);
+            }
         }
     }
 
