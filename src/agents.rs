@@ -71,6 +71,11 @@ impl<'a> Agent for MinimaxPolicyAgent<'a> {
     // If a move is guaranteed to be losing it will never be taken.
     // The policy will pick among the remaining moves that are not losing.
     fn get_action(&self, board: &Connect4, player: Player) -> Action {
+        self.get_action_explored(board,player).0
+    }
+
+    // Returns chosen action and a boolean that is true if it was a exploring move
+    fn get_action_explored(&self, board: &Connect4, player: Player) -> (Action, bool) {
         let mut board = board.clone();
         let mut winning_moves = Vec::new();
         let mut avs = Vec::new();
@@ -86,13 +91,14 @@ impl<'a> Agent for MinimaxPolicyAgent<'a> {
             }
         }
         if winning_moves.len() != 0 {
-            return *winning_moves[fastrand::usize(0..winning_moves.len())];
+            return (*winning_moves[fastrand::usize(0..winning_moves.len())], false);
         } else if avs.len() != 0 {
+            let max_av = avs.iter().fold(-1./0., |b, (_,v)| v.max(b));
             let vals = avs.iter().map(|(_,v)|*v).collect();
             let i = self.policy.choose(&vals);
-            return *avs[i].0;
+            return (*avs[i].0, max_av != avs[i].1);
         } else {
-            return actions[fastrand::usize(0..actions.len())];
+            return (actions[fastrand::usize(0..actions.len())], false);
         }
     }
 }

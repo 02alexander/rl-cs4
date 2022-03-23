@@ -3,6 +3,9 @@ use crate::connect4::{Connect4, Player, Action, GameState};
 
 pub trait Agent {
     fn get_action(&self, board: &Connect4, player: Player) -> Action;
+    fn get_action_explored(&self, board: &Connect4, player: Player) -> (Action, bool) {
+        (self.get_action(board, player), false)
+    }
 }
 
 

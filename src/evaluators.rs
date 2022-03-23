@@ -4,7 +4,7 @@ use crate::connect4;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use serde::de::{Visitor, SeqAccess};
 use anyhow::Result;
-use tch::nn::{ModuleT, OptimizerConfig, VarStore};
+use tch::nn::{ModuleT, VarStore};
 use tch::TrainableCModule;
 use tch::{Device};
 use std::fmt;
