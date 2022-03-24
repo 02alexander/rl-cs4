@@ -1,6 +1,7 @@
 
-use crate::connect4::{Connect4, Player, Action, GameState};
-use crate::connect4;
+use crate::games::connect4::{Connect4, Action};
+use crate::games::{Player, GameState, Game};
+use crate::games::connect4;
 use crate::evaluators::Evaluator;
 use std::collections::HashMap;
 
@@ -62,16 +63,16 @@ fn _minimax(board: &mut Connect4, depth: u32, ismaximizing: bool, evaluator: &dy
         return v;
     } else if ismaximizing {
         let mut value: f64 = -1.0/0.0;
-        for action in board.valid_moves() {
-            board.play_move(action);
+        for action in board.legal_actions() {
+            board.play_action(action);
             value = value.max(_minimax(board, depth-1, false, evaluator, player));
             board.reverse_last_action(action);
         }
         return value
     } else {
         let mut value: f64 = 1.0/0.0;
-        for action in board.valid_moves() {
-            board.play_move(action);
+        for action in board.legal_actions() {
+            board.play_action(action);
             value = value.min(_minimax(board, depth-1, true, evaluator, player));
             board.reverse_last_action(action);
         }
@@ -80,7 +81,7 @@ fn _minimax(board: &mut Connect4, depth: u32, ismaximizing: bool, evaluator: &dy
 }
 
 pub fn minimax_action(board: &mut Connect4, action: Action, depth: u32, evaluator: &dyn Evaluator, player: Player) -> f64 {
-    board.play_move(action);
+    board.play_action(action);
     unsafe { 
         COUNT = 0;
     }
@@ -95,7 +96,7 @@ pub fn minimax_action(board: &mut Connect4, action: Action, depth: u32, evaluato
 pub fn abpruning_action(
         board: &mut Connect4, action: Action, depth: u32, 
         evaluator: &dyn Evaluator, tt: &mut TranspositionTable<f64>, player: Player) -> f64 {
-    board.play_move(action);
+    board.play_action(action);
     let v = _abpruning(board, -1./0., 1./0., depth, false, evaluator, tt, player);
     board.reverse_last_action(action);
     v
@@ -105,7 +106,7 @@ pub fn abpruning_action_values(
         board: &mut Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> Vec<(Action, f64)> {
     let mut avs = Vec::with_capacity(connect4::N_ACTIONS);
     let mut tt = TranspositionTable::new();
-    for action in board.valid_moves() {
+    for action in board.legal_actions() {
         let v = abpruning_action(board, action, depth, evaluator, &mut tt, player);
         avs.push((action,v));
     }
@@ -150,8 +151,8 @@ fn _abpruning(board: &mut Connect4, mut alpha: f64, mut beta: f64,
     } 
     if ismaximizing {
         let mut max_value: f64 = -1.0/0.0;
-        for action in board.valid_moves() {
-            board.play_move(action);
+        for action in board.legal_actions() {
+            board.play_action(action);
             max_value = max_value.max(_abpruning(board, alpha, beta, depth-1, false, evaluator, tt, player));
             board.reverse_last_action(action);
             alpha = alpha.max(max_value);
@@ -170,8 +171,8 @@ fn _abpruning(board: &mut Connect4, mut alpha: f64, mut beta: f64,
         }
     } else {
         let mut min_value: f64 = 1.0/0.0;
-        for action in board.valid_moves() {
-            board.play_move(action);
+        for action in board.legal_actions() {
+            board.play_action(action);
             min_value = min_value.min(_abpruning(board, alpha, beta, depth-1, true, evaluator, tt, player));
             board.reverse_last_action(action);
             beta = beta.min(min_value);
@@ -188,8 +189,8 @@ fn _abpruning(board: &mut Connect4, mut alpha: f64, mut beta: f64,
 pub fn batch_negamax_best_action(board: &Connect4, depth: u32, evaluator: &dyn Evaluator, player: Player) -> Action {
     let mut _board = board.clone();
     let mut avs = Vec::new();
-    for action in _board.valid_moves() {
-        _board.play_move(action);
+    for action in _board.legal_actions() {
+        _board.play_action(action);
         avs.push((action, -batch_negamax(&_board, depth-1, evaluator, !player)));
         _board.reverse_last_action(action);
     }
@@ -203,8 +204,8 @@ pub fn batch_negamax_best_action(board: &Connect4, depth: u32, evaluator: &dyn E
 pub fn batch_abnegamax_best_action(board: &Connect4, depth: u32, batch_depth: u32, evaluator: &dyn Evaluator, player: Player) -> Action {
     let mut _board = board.clone();
     let mut avs = Vec::new();
-    for action in _board.valid_moves() {
-        _board.play_move(action);
+    for action in _board.legal_actions() {
+        _board.play_action(action);
         avs.push((action, -abnegamax(&_board, depth-1, batch_depth, evaluator, !player)));
         _board.reverse_last_action(action);
     }
@@ -220,8 +221,8 @@ pub fn negamax(board: &mut Connect4, depth: u32, evaluator: &dyn Evaluator, play
         return evaluator.value(board, player);
     }
     let mut val: f64 = -1./0.;
-    for action in board.valid_moves() {
-        board.play_move(action);
+    for action in board.legal_actions() {
+        board.play_action(action);
         let v = -negamax(board, depth-1, evaluator, !player);
         board.reverse_last_action(action);
         val = val.max(v);
@@ -239,8 +240,8 @@ fn _abnegamax(board: &mut Connect4, mut alpha: f64, beta: f64, depth: u32, batch
         return evaluator.value(board, player);
     }
     let mut val: f64 = -1./0.;
-    for action in board.valid_moves() {
-        board.play_move(action);
+    for action in board.legal_actions() {
+        board.play_action(action);
         //let v = -_abnegamax(board, -beta, -alpha, depth-1, batch_depth, evaluator, !player);
         let v = if depth <= batch_depth+1 {
             -batch_negamax(board, depth-1, evaluator, !player)
@@ -286,8 +287,8 @@ fn negamax_from_hashmap(board: &mut Connect4, depth: u32, evaluator: &dyn Evalua
         return hmap[&board.board];
     }
     let mut val: f64 = -1./0.;
-    for action in board.valid_moves() {
-        board.play_move(action);
+    for action in board.legal_actions() {
+        board.play_action(action);
         let v = -negamax_from_hashmap(board, depth-1, evaluator, !player, &hmap);
         val = val.max(v);
         board.reverse_last_action(action);
@@ -303,8 +304,8 @@ pub fn leafs(board: &mut Connect4, depth: u32) -> Vec<Connect4> {
         return Vec::new();
     }
     let mut ret = Vec::new();
-    for action in board.valid_moves() {
-        board.play_move(action);
+    for action in board.legal_actions() {
+        board.play_action(action);
         ret.append(&mut leafs(board, depth-1));
         board.reverse_last_action(action);
     }

@@ -2,6 +2,8 @@
 use std::fmt;
 use std::ops;
 use serde::{Serialize, Deserialize};
+use crate::games::{Player, GameState};
+use crate::games::Game;
 
 pub const BOARD_WIDTH: usize = 7;
 pub const BOARD_HEIGHT: usize = 6;
@@ -13,24 +15,6 @@ pub const REWARD_DRAW: f64 = 0.0;
 
 pub type Action = usize; // a value in the range of [0,BOARD_WIDTH)
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
-pub enum TileStates {
-    Empty,
-    Full(Player),
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
-pub enum Player {
-    Red=1,
-    Yellow=2,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
-pub enum GameState {
-    Won(Player),
-    Draw,
-    InProgress
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Connect4 {
@@ -41,15 +25,7 @@ pub struct Connect4 {
     pub game_state: GameState,
 }
 
-impl ops::Not for Player {
-    type Output = Player;
-    fn not(self) -> Self {
-        match self {
-            Player::Red => Player::Yellow,
-            Player::Yellow => Player::Red,
-        }
-    }
-}
+
 
 impl Connect4 {
     pub fn new() -> Self {
@@ -58,32 +34,6 @@ impl Connect4 {
             cur_player: Player::Red,
             game_state: GameState::InProgress,
         }
-    }
-
-    // Plays action for player self.cur_player
-    pub fn play_move(&mut self, action: Action) {
-        assert_eq!(self.game_state, GameState::InProgress);
-        if !self.is_valid_move(action) {
-            return
-        }
-        let ap = self.action_pos(action);
-        self.set(ap[0],ap[1], self.cur_player as u8);
-        if self.player_won(ap) {
-            self.game_state = GameState::Won(self.cur_player);
-        } else if self.is_full() {
-            self.game_state = GameState::Draw;
-        } else {
-            self.game_state = GameState::InProgress;
-        }
-        self.cur_player = !self.cur_player;
-    }
-
-    // Reverses last action if the last action is last_action.
-    pub fn reverse_last_action(&mut self, last_action: Action) {
-        let ap = self.pos_from_action(last_action);
-        self.set(ap[0],ap[1],0);
-        self.game_state = GameState::InProgress;
-        self.cur_player = !self.cur_player;
     }
 
     pub fn player_won(&self, piece_pos: [usize; 2]) -> bool {
@@ -152,18 +102,6 @@ impl Connect4 {
         self.get(action,BOARD_HEIGHT-1) == 0
     }
 
-    pub fn valid_moves(&self) -> Vec<Action> {
-
-        // it's 2.5 time faster to use Vec::with_capacity than Vec::new
-        let mut v = Vec::with_capacity(BOARD_WIDTH); 
-        for i in 0..BOARD_WIDTH {
-            if self.is_valid_move(i) {
-                v.push(i);
-            }
-        }
-        v
-    }
-
     // mirrors board around the middle of the board.
     // assumes BOARD_WIDTH = 7. so if BOARD_WIDTH changes then so must this function
     pub fn symmetry(&self) -> Connect4 {
@@ -188,7 +126,67 @@ impl Connect4 {
         }
     }
 
-    pub fn vectorize(&self, player: Player) -> Vec<f64> {
+    pub fn set(&mut self, x: usize, y: usize, v: u8) {
+        let k = 2*(x+y*BOARD_WIDTH);
+        let mask = 3 << k;
+        self.board = (self.board & (!mask)) + ((v as u128) << k);
+    }
+
+    pub fn get(&self, x: usize, y:usize) -> u8 {
+        3 & (self.board >> (2*(x+y*BOARD_WIDTH))) as u8
+    }
+}
+
+impl Game for Connect4 {
+    type Action = usize;
+
+    // Plays action for player self.cur_player
+    fn play_action(&mut self, action: Action) {
+        assert_eq!(self.game_state, GameState::InProgress);
+        if !self.is_valid_move(action) {
+            return
+        }
+        let ap = self.action_pos(action);
+        self.set(ap[0],ap[1], self.cur_player as u8);
+        if self.player_won(ap) {
+            self.game_state = GameState::Won(self.cur_player);
+        } else if self.is_full() {
+            self.game_state = GameState::Draw;
+        } else {
+            self.game_state = GameState::InProgress;
+        }
+        self.cur_player = !self.cur_player;
+    }
+
+    // Reverses last action if the last action is last_action.
+    fn reverse_last_action(&mut self, last_action: Action) {
+        let ap = self.pos_from_action(last_action);
+        self.set(ap[0],ap[1],0);
+        self.game_state = GameState::InProgress;
+        self.cur_player = !self.cur_player;
+    }
+
+    fn legal_actions(&self) -> Vec<Action> {
+
+        // it's 2.5 time faster to use Vec::with_capacity than Vec::new
+        let mut v = Vec::with_capacity(BOARD_WIDTH); 
+        for i in 0..BOARD_WIDTH {
+            if self.is_valid_move(i) {
+                v.push(i);
+            }
+        }
+        v
+    }
+
+    fn game_state(&self) -> GameState {
+        self.game_state
+    }
+
+    fn cur_player(&self) -> Player {
+        self.cur_player
+    }
+
+    fn vectorize(&self, player: Player) -> Vec<f64> {
         let mut v = Vec::with_capacity(BOARD_WIDTH*BOARD_HEIGHT);
         let mut board = self.board;
         for _ in 0..BOARD_WIDTH {
@@ -205,16 +203,6 @@ impl Connect4 {
             }
         }
         v
-    }
-
-    pub fn set(&mut self, x: usize, y: usize, v: u8) {
-        let k = 2*(x+y*BOARD_WIDTH);
-        let mask = 3 << k;
-        self.board = (self.board & (!mask)) + ((v as u128) << k);
-    }
-
-    pub fn get(&self, x: usize, y:usize) -> u8 {
-        3 & (self.board >> (2*(x+y*BOARD_WIDTH))) as u8
     }
 }
 
@@ -248,11 +236,11 @@ mod test {
         let mut board = Connect4::new();
         let moves = vec![1,2,2,3,2,4,2,5];
         for mv in &moves[0..moves.len()-1] {
-            board.play_move(*mv);
+            board.play_action(*mv);
             println!("{:?}", board);
             assert_eq!(board.game_state, GameState::InProgress);
         }
-        board.play_move(moves[moves.len()-1]);
+        board.play_action(moves[moves.len()-1]);
         println!("{:?}", board);
         println!("{:?}", board.game_state);
         assert_eq!(board.game_state, GameState::Won(Player::Yellow));
@@ -263,28 +251,28 @@ mod test {
         let mut board = Connect4::new();
         let moves = vec![1,2,2,3,2,4,2,5];
         for mv in &moves[0..moves.len()-1] {
-            board.play_move(*mv);
+            board.play_action(*mv);
             println!("{:?}", board);
             assert_eq!(board.game_state, GameState::InProgress);
         }
-        board.play_move(moves[moves.len()-1]);
+        board.play_action(moves[moves.len()-1]);
         println!("{:?}", board);
         println!("{:?}", board.game_state);
         assert_eq!(board.game_state, GameState::Won(Player::Yellow));
         board.reverse_last_action(moves[moves.len()-1]);
         assert_eq!(board.game_state, GameState::InProgress);
-        board.play_move(6);
-        board.play_move(2);
+        board.play_action(6);
+        board.play_action(2);
         assert_eq!(board.game_state, GameState::Won(Player::Red));
 
         let mut board = Connect4::new();
-        board.play_move(0);
-        board.play_move(0);
-        board.play_move(0);
-        board.play_move(0);
-        board.play_move(0);
+        board.play_action(0);
+        board.play_action(0);
+        board.play_action(0);
+        board.play_action(0);
+        board.play_action(0);
         let old_board = board.clone();
-        board.play_move(0);
+        board.play_action(0);
         board.reverse_last_action(0);
         println!("{:?}\n{:?}",old_board,board);
         assert_eq!(old_board.board, board.board);

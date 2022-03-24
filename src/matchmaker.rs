@@ -1,5 +1,6 @@
 
-use crate::connect4::{Connect4, Player, Action, GameState};
+use crate::games::connect4::{Connect4, Action};
+use crate::games::{Player, GameState, Game};
 
 pub trait Agent {
     fn get_action(&self, board: &Connect4, player: Player) -> Action;
@@ -162,7 +163,7 @@ pub fn play_game(p1: &dyn Agent, p2: &dyn Agent) -> Vec<Connect4> {
         } else {
             p2.get_action(&board, board.cur_player)
         };
-        board.play_move(action);
+        board.play_action(action);
         b = !b;
         boards.push(board.clone());
     }

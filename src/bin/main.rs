@@ -4,12 +4,13 @@ extern crate fastrand;
 extern crate serde_json;
 extern crate gamesolver;
 
-use gamesolver::connect4::{Connect4, Player, GameState, Action};
+use gamesolver::games::connect4::{Connect4, Action};
+use gamesolver::games::{GameState, Player};
 use gamesolver::evaluators::{Evaluator, SimpleEval, CNNEval};
 use gamesolver::agents::{MinimaxPolicyAgent};
 use std::io::{self, BufRead};
 use gamesolver::matchmaker::{Agent, MatchMaker};
-use gamesolver::connect4;
+use gamesolver::games::{connect4, Game};
 use gamesolver::qlearning::{QLearning, RL};
 use gamesolver::policies::{EpsilonGreedy};
 use clap::{Parser, Subcommand};
@@ -73,28 +74,9 @@ enum Commands {
     }
 }
 
-fn _test_update() {
-    let mut eval = CNNEval::new("models/model.pt".to_owned());
-    let mut board = Connect4::new();
-    for action in vec![1,2,1,4,2,5,3] {
-        board.play_move(action);
-    }
-    for _ in 0..10000 {
-        let grad = eval.gradient(&board, !Player::Red);
-        let yhat = eval.value(&board, !Player::Red);
-        let y = 1.0;
-        let deltas: Vec<_> = grad.iter().map(|g| g*(y-yhat)*0.001).collect();
-        eval.apply_update(&deltas);
-        println!("{:.5}", (y-yhat).powf(2.0));
-    }
-    
-}
+fn main() { 
 
-fn main() {
-
-    //_test_update();
-
-    
+    gamesolver::games::stack4::Stack4::user_vs_user();
 
     let args = Cli::parse();
 
@@ -200,7 +182,7 @@ fn _mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
     let actions = vec![4, 2, 3, 5, 5, 3, 5, 5, 6, 5, 6, 2, 6, 6, 6, 3, 6, 4];
     let mut board = Connect4::new();
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let vyellow = evaluator.value(&board, Player::Yellow);
     let vred = evaluator.value(&board, Player::Red);
@@ -209,6 +191,8 @@ fn _mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
 
     ((vyellow-1.0)*(vyellow-1.0)+(vred+1.0)*(vred+1.0))/2.0
 }
+
+
 
 // returns (action, is_reverse)
 fn get_move_from_user(board: &Connect4) -> (Action, bool) {
@@ -245,7 +229,7 @@ fn _user_vs_user() {
             board.reverse_last_action(last_action);
         } else {
             last_action = action;
-            board.play_move(action);
+            board.play_action(action);
             match board.game_state {
                 GameState::Draw => {
                     println!("Draw");
@@ -278,7 +262,7 @@ fn user_vs_agent(agent: &dyn Agent) {
             continue
         } else {
             actions.push(action);
-            board.play_move(action);
+            board.play_action(action);
             match board.game_state {
                 GameState::Draw => {
                     println!("Draw");
@@ -291,7 +275,7 @@ fn user_vs_agent(agent: &dyn Agent) {
         }
         let action = agent.get_action(&board, !p);
         actions.push(action);
-        board.play_move(action);
+        board.play_action(action);
         match board.game_state {
             GameState::Draw => {
                 println!("Draw");

@@ -1,6 +1,7 @@
 
 use crate::evaluators::{Evaluator};
-use crate::connect4::{Connect4, Player, GameState};
+use crate::games::connect4::{Connect4};
+use crate::games::{GameState, Player, Game};
 use crate::policies::Policy;
 use crate::matchmaker::{Agent};
 use crate::search::{batch_negamax};
@@ -23,7 +24,7 @@ pub fn episode(p1: &dyn Agent, p2: &dyn Agent) -> Vec<(Connect4, bool)> {
         } else {
             p2.get_action_explored(&board, board.cur_player)
         };
-        board.play_move(action);
+        board.play_action(action);
         b = !b;
         boards.push((board.clone(), explored));
     }

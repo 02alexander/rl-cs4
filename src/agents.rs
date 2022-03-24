@@ -2,7 +2,8 @@
 use crate::evaluators::Evaluator;
 use crate::search::*;
 use crate::matchmaker::Agent;
-use crate::connect4::{Connect4, Action, Player};
+use crate::games::connect4::{Connect4, Action};
+use crate::games::{Player, Game};
 use crate::policies::Policy;
 
 pub struct MinimaxAgent<'a> {
@@ -79,9 +80,9 @@ impl<'a> Agent for MinimaxPolicyAgent<'a> {
         let mut board = board.clone();
         let mut winning_moves = Vec::new();
         let mut avs = Vec::new();
-        let actions = board.valid_moves();
+        let actions = board.legal_actions();
         for action in &actions {
-            board.play_move(*action);
+            board.play_action(*action);
             let v = -batch_negamax(&board, self.depth-1, self.evaluator, !player);
             board.reverse_last_action(*action);
             if v == 1./0. {

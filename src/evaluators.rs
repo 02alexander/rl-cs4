@@ -1,6 +1,6 @@
 
-use crate::connect4::{Connect4, Player, GameState, TileStates};
-use crate::connect4;
+use crate::games::connect4::{Connect4, BOARD_HEIGHT, BOARD_WIDTH};
+use crate::games::{Player, GameState, TileStates, Game};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use serde::de::{Visitor, SeqAccess};
 use anyhow::Result;
@@ -118,9 +118,9 @@ impl LinesEval {
         let mut total = 0.0;
         let directions = [[1, 0],[0, 1], [1,1]];
         //iterates over the first row and the first column.
-        for (r,c) in (0..connect4::BOARD_HEIGHT).map(|r|(r,0)).chain((0..connect4::BOARD_HEIGHT).map(|c|(0,c))) {
+        for (r,c) in (0..BOARD_HEIGHT).map(|r|(r,0)).chain((0..BOARD_HEIGHT).map(|c|(0,c))) {
             for dir in directions {
-                let mut line = Vec::with_capacity(connect4::BOARD_WIDTH); 
+                let mut line = Vec::with_capacity(BOARD_WIDTH); 
                 let mut k = 0;
                 loop {
                     if !board.in_board(k*dir[1]+c as i32, k*dir[0]+r as i32) {
@@ -214,8 +214,8 @@ impl ConsequtiveEval {
     fn features(&self, board: &Connect4, player: Player) -> Vec<f64> {
         let directions = [[1,0], [1,1], [0,1], [-1, 1]];
         let mut f = vec![0;6];
-        for x in 0..connect4::BOARD_WIDTH {
-            for y in 0..connect4::BOARD_HEIGHT {
+        for x in 0..BOARD_WIDTH {
+            for y in 0..BOARD_HEIGHT {
                 if board.get(x,y) != 0 {
                     continue
                 }
@@ -229,8 +229,8 @@ impl ConsequtiveEval {
                 }
             }
         }
-        for x in 0..connect4::BOARD_WIDTH {
-            for y in 0..connect4::BOARD_HEIGHT {
+        for x in 0..BOARD_WIDTH {
+            for y in 0..BOARD_HEIGHT {
                 if board.get(x,y) != 0 {
                     continue
                 }
@@ -283,8 +283,8 @@ impl Evaluator for CNNEval {
                     let ptr = vectorized_board.as_ptr();
                     let t = tch::Tensor::of_blob(
                         ptr as *const u8, 
-                        &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
-                        &[0, 0, connect4::BOARD_WIDTH as i64, 1],
+                        &[1,1,BOARD_HEIGHT as i64, BOARD_WIDTH as i64], 
+                        &[0, 0, BOARD_WIDTH as i64, 1],
                         tch::Kind::Double,
                         tch::Device::Cpu,
                     );
@@ -304,7 +304,7 @@ impl Evaluator for CNNEval {
             vectorized_boards.append(&mut board.vectorize(player));
         }
         let mut tensor = tch::Tensor::of_slice(&vectorized_boards);
-        let _ = tensor.resize_(&[boards.len() as i64,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64]);
+        let _ = tensor.resize_(&[boards.len() as i64,1,BOARD_HEIGHT as i64, BOARD_WIDTH as i64]);
         let v = self.model.forward_t(&tensor, true);
         let out: Vec<f64> = Vec::from(v);
         out
@@ -349,8 +349,8 @@ impl Evaluator for CNNEval {
             let ptr = vectorized_board.as_ptr();
             let t = tch::Tensor::of_blob(
                 ptr as *const u8, 
-                &[1,1,connect4::BOARD_HEIGHT as i64, connect4::BOARD_WIDTH as i64], 
-                &[0, 0, connect4::BOARD_WIDTH as i64, 1],
+                &[1,1,BOARD_HEIGHT as i64, BOARD_WIDTH as i64], 
+                &[0, 0, BOARD_WIDTH as i64, 1],
                 tch::Kind::Double,
                 tch::Device::Cpu,
             );
