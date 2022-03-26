@@ -204,6 +204,9 @@ impl Game for Connect4 {
         }
         v
     }
+    fn uid(&self) -> u128 {
+        self.board
+    }
 }
 
 

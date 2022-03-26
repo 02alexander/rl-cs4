@@ -6,7 +6,7 @@ extern crate gamesolver;
 
 use gamesolver::games::connect4::{Connect4, Action};
 use gamesolver::games::{GameState, Player};
-use gamesolver::evaluators::{Evaluator, SimpleEval, CNNEval};
+use gamesolver::evaluators::{Evaluator, Evaluators, simple::SimpleEval, cnn::CNNEval};
 use gamesolver::agents::{MinimaxPolicyAgent};
 use std::io::{self, BufRead};
 use gamesolver::matchmaker::{Agent, MatchMaker};
@@ -76,25 +76,25 @@ enum Commands {
 
 fn main() { 
 
-    gamesolver::games::stack4::Stack4::user_vs_user();
+    //gamesolver::games::stack4::Stack4::user_vs_user();
 
     let args = Cli::parse();
 
     match args.command {
         Commands::Create{ai_file, model_file} => {
             if let Some(model_file) = model_file {
-                let evaluator = CNNEval::new(model_file);
+                let evaluator = Evaluators::CNN(CNNEval::new(model_file));
                 let policy = EpsilonGreedy::new(0.1);
-                let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
+                let mut ai = QLearning::new(evaluator, Box::new(policy), 0.0001);
                 ai.discount = 0.95;
                 ai.depth = 4;
                 let ai: Box<dyn RL> = Box::new(ai);
                 let serialized_ai = serde_json::to_string(&ai).unwrap();
                 std::fs::write(ai_file, &serialized_ai).unwrap();
             } else {
-                let evaluator = SimpleEval::new();
+                let evaluator = Evaluators::Simple(SimpleEval::new());
                 let policy = EpsilonGreedy::new(0.1);
-                let mut ai = QLearning::new(Box::new(evaluator), Box::new(policy), 0.0001);
+                let mut ai = QLearning::new(evaluator, Box::new(policy), 0.0001);
                 ai.discount = 0.95;
                 ai.depth = 4;
                 let ai: Box<dyn RL> = Box::new(ai);
@@ -173,11 +173,9 @@ fn main() {
             println!("{:?}", mm.scores());
         }   
     }
-
-    
 }
 
-fn _mse_cnneval(evaluator: &dyn Evaluator) -> f64 {
+fn _mse_cnneval<E: Evaluator<Connect4>>(evaluator: &E) -> f64 {
     // good for yellow
     let actions = vec![4, 2, 3, 5, 5, 3, 5, 5, 6, 5, 6, 2, 6, 6, 6, 3, 6, 4];
     let mut board = Connect4::new();

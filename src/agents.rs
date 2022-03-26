@@ -1,5 +1,5 @@
 
-use crate::evaluators::Evaluator;
+use crate::evaluators::{Evaluator, Evaluators};
 use crate::search::*;
 use crate::matchmaker::Agent;
 use crate::games::connect4::{Connect4, Action};
@@ -7,12 +7,12 @@ use crate::games::{Player, Game};
 use crate::policies::Policy;
 
 pub struct MinimaxAgent<'a> {
-    evaluator: &'a dyn Evaluator,
+    evaluator: &'a Evaluators,
     depth: u32,
 }
 
 impl<'a> MinimaxAgent<'a> {
-    pub fn new(evaluator: &'a dyn Evaluator, depth: u32) -> Self {
+    pub fn new(evaluator: &'a Evaluators, depth: u32) -> Self {
         MinimaxAgent {
             evaluator,
             depth,
@@ -22,18 +22,18 @@ impl<'a> MinimaxAgent<'a> {
 
 impl<'a> Agent for MinimaxAgent<'a> {
     fn get_action(&self, board: &Connect4, player: Player) -> Action {
-        abpruning_best_action(board, self.depth, &*self.evaluator, player)
+        abnegamax_best_action(board, self.depth, &*self.evaluator, player)
     }
 }
 
 pub struct BatchMinimaxAgent<'a> {
-    evaluator: &'a dyn Evaluator,
+    evaluator: &'a Evaluators,
     depth: u32,
     batch_depth: u32,
 }
 
 impl<'a> BatchMinimaxAgent<'a> {
-    pub fn new(evaluator: &'a dyn Evaluator, depth: u32, batch_depth: u32) -> Self {
+    pub fn new(evaluator: &'a Evaluators, depth: u32, batch_depth: u32) -> Self {
         BatchMinimaxAgent {
             evaluator,
             depth,
@@ -50,14 +50,14 @@ impl<'a> Agent for BatchMinimaxAgent<'a> {
 
 
 pub struct MinimaxPolicyAgent<'a> {
-    evaluator: &'a dyn Evaluator,
+    evaluator: &'a Evaluators,
     policy: &'a dyn Policy,
     depth: u32,
     pub batch_depth: u32,
 }
 
 impl<'a> MinimaxPolicyAgent<'a> {
-    pub fn new(evaluator: &'a dyn Evaluator, policy: &'a dyn Policy, depth: u32) -> Self {
+    pub fn new(evaluator: &'a Evaluators, policy: &'a dyn Policy, depth: u32) -> Self {
         MinimaxPolicyAgent {
             evaluator,
             policy,

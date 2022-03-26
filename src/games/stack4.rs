@@ -212,6 +212,9 @@ impl Game for Stack4 {
         }
         v
     }
+    fn uid(&self) -> u128 {
+        self.board
+    }
 }
 
 impl fmt::Debug for Stack4 {

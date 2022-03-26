@@ -1,0 +1,106 @@
+pub mod cnn;
+pub mod consequtive;
+pub mod lines;
+pub mod simple;
+
+use consequtive::ConsequtiveEval;
+use lines::LinesEval;
+use simple::SimpleEval;
+use cnn::CNNEval;
+use serde::{Serialize, Deserialize};
+
+use crate::games::{Game, Player};
+use crate::games::connect4::Connect4;
+use crate::games::stack4::Stack4;
+
+
+pub trait Evaluator<T> where T: Game {
+
+    // the estimated value at the position 'board'.
+    // it must always return -infinity on loss and +infinity on win.    
+    fn value(&self, board: &T, player: Player) -> f64;
+
+    // Useful when the evaluator is better at computing values in batch, for example a neural network.
+    fn values(&self, boards: &Vec<T>, player: Player) -> Vec<f64> {
+        let mut vs = Vec::with_capacity(boards.len());
+        for board in boards {
+            vs.push(self.value(board, player));
+        }
+        vs
+    }
+
+    fn gradient(&self, board: &T, player: Player) -> Vec<f64>;
+    fn apply_update(&mut self, update: &[f64]);
+    //fn update(&mut self, board: &Connect4, player: Player, target_av: f64, learning_rate: f64);
+    fn get_params(&self) -> Vec<f64>;
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum Evaluators {
+    Simple(SimpleEval),
+    Lines(LinesEval),
+    CNN(CNNEval),
+    Consequtive(ConsequtiveEval),
+}
+
+impl Evaluator<Connect4> for Evaluators {
+    fn value(&self, board: &Connect4, player: Player) -> f64 {
+        match self {
+            Evaluators::Simple(ref eval) => {eval.value(board, player)},
+            Evaluators::Lines(ref eval) => {eval.value(board, player)},
+            Evaluators::CNN(ref eval) => {eval.value(board, player)},
+            Evaluators::Consequtive(ref eval) => {eval.value(board, player)},
+        }
+    }
+    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+        match self {
+            Evaluators::Simple(ref eval) => {eval.values(boards, player)},
+            Evaluators::Lines(ref eval) => {eval.values(boards, player)},
+            Evaluators::CNN(ref eval) => {eval.values(boards, player)},
+            Evaluators::Consequtive(ref eval) => {eval.values(boards, player)},
+        }
+    }
+    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+        match self {
+            Evaluators::Simple(ref eval) => {eval.gradient(board, player)},
+            Evaluators::Lines(ref eval) => {eval.gradient(board, player)},
+            Evaluators::CNN(ref eval) => {eval.gradient(board, player)},
+            Evaluators::Consequtive(ref eval) => {eval.gradient(board, player)},
+        }
+    }
+    fn apply_update(&mut self, update: &[f64]) {
+        match self {
+            Evaluators::Simple(ref mut eval) => {<SimpleEval as Evaluator<Connect4>>::apply_update(eval,update)},
+            Evaluators::Lines(ref mut eval) => {<LinesEval as Evaluator<Connect4>>::apply_update(eval, update)},
+            Evaluators::CNN(ref mut eval) => {<CNNEval as Evaluator<Connect4>>::apply_update(eval, update)},
+            Evaluators::Consequtive(ref mut eval) => {<ConsequtiveEval as Evaluator<Connect4>>::apply_update(eval, update)},
+        }
+    }
+    fn get_params(&self) -> Vec<f64> {
+        match self {
+            Evaluators::Simple(ref eval) => {<SimpleEval as Evaluator<Connect4>>::get_params(eval)},
+            Evaluators::Lines(ref eval) => {<LinesEval as Evaluator<Connect4>>::get_params(eval)},
+            Evaluators::CNN(ref eval) => {<CNNEval as Evaluator<Connect4>>::get_params(eval)},
+            Evaluators::Consequtive(ref eval) => {<ConsequtiveEval as Evaluator<Connect4>>::get_params(eval)},
+        }
+    }
+}
+
+
+impl Evaluator<Stack4> for Evaluators {
+    fn value(&self, board: &Stack4, player: Player) -> f64 {
+        todo!()
+    }
+    fn values(&self, boards: &Vec<Stack4>, player: Player) -> Vec<f64> {
+        todo!()
+    }
+    fn gradient(&self, board: &Stack4, player: Player) -> Vec<f64> {
+        todo!()
+    }
+    fn apply_update(&mut self, update: &[f64]) {
+        todo!()
+    }
+    fn get_params(&self) -> Vec<f64> {
+        todo!()
+    }
+}

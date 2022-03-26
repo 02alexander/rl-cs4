@@ -1,5 +1,5 @@
 
-use crate::evaluators::{Evaluator};
+use crate::evaluators::{Evaluator, Evaluators};
 use crate::games::connect4::{Connect4};
 use crate::games::{GameState, Player, Game};
 use crate::policies::Policy;
@@ -44,7 +44,7 @@ pub trait RL {
     // Learns from playing against opponent.
     fn play_against(&mut self, opponent: &dyn Agent);
     
-    fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator;
+    fn get_evaluator<'a>(&'a self) -> &'a Evaluators;
     fn get_policy<'a>(&'a self) -> &'a dyn Policy;
     fn get_depth(&self) -> u32;
     fn scores(&self) -> Option<&Vec<f64>> {
@@ -55,7 +55,7 @@ pub trait RL {
 
 #[derive(Serialize, Deserialize)]
 pub struct QLearning {
-    evaluator: Box<dyn Evaluator>,
+    evaluator: Evaluators,
     exploration_policy: Box<dyn Policy>,
     pub step_size: f64,
     pub discount: f64,
@@ -72,7 +72,7 @@ pub struct QLearning {
 }
 
 impl QLearning { 
-    pub fn new(evaluator: Box<dyn Evaluator>, exploration_policy: Box<dyn Policy>, step_size: f64) -> QLearning {
+    pub fn new(evaluator: Evaluators, exploration_policy: Box<dyn Policy>, step_size: f64) -> QLearning {
         QLearning {
             evaluator,
             exploration_policy,
@@ -113,7 +113,7 @@ impl RL for QLearning {
                     }
                 }
             } else {
-                let v = batch_negamax(&next_state, self.depth, &*self.evaluator, player);
+                let v = batch_negamax(*next_state, self.depth, &self.evaluator, player);
 
                 // The reward is baked into the target action value.
                 if v == 1./0. {
@@ -140,21 +140,21 @@ impl RL for QLearning {
             for state in &symmetric_states {
                 let current_av = self.evaluator.value(state, player);
                 let deltas: Vec<_> = self.eligibilty_trace.as_ref().unwrap().iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
-                self.evaluator.apply_update(&deltas);
+                <Evaluators as Evaluator<Connect4>>::apply_update(&mut self.evaluator, &deltas);
             }
         }
     }
 
     fn self_play(&mut self) {
-        let agenta = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
-        let agentb = MinimaxPolicyAgent::new(&*self.evaluator, &*self.exploration_policy, self.depth);
+        let agenta = MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
+        let agentb = MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
         let game_hist = episode(&agenta, &agentb);
         self.update(&game_hist, Player::Red);
         self.update(&game_hist, Player::Yellow);
     }
 
     fn play_against(&mut self, opponent: &dyn Agent) {
-        let agent = BatchMinimaxAgent::new(&*self.evaluator, self.depth, self.depth);
+        let agent = BatchMinimaxAgent::new(&self.evaluator, self.depth, self.depth);
         let (game_hist, selfp) = if fastrand::bool() {
             (episode(&agent, opponent), Player::Red)
         } else {
@@ -175,8 +175,8 @@ impl RL for QLearning {
         self.update(&game_hist, selfp);
     }
 
-    fn get_evaluator<'a>(&'a self) -> &'a dyn Evaluator {
-        &*self.evaluator
+    fn get_evaluator<'a>(&'a self) -> &'a Evaluators {
+        &self.evaluator
     }
     fn get_policy<'a>(&'a self) -> &'a dyn Policy {
         &*self.exploration_policy

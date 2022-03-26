@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 use std::ops;
 
 // A two player with three possible outcomes, win for either player or a draw.
-pub trait Game {
+pub trait Game: Clone {
     type Action;
 
     fn play_action(&mut self, action: Self::Action);
@@ -15,6 +15,7 @@ pub trait Game {
     fn cur_player(&self) -> Player;
     fn legal_actions(&self) -> Vec<Self::Action>;
     fn vectorize(&self, player: Player) -> Vec<f64>;
+    fn uid(&self) -> u128;
 }
 
 // in the boards these are represented by two bit numbers where Empty=0, Full(Red)=1, Full(Yellow)=2 
