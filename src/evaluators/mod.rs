@@ -36,71 +36,87 @@ pub trait Evaluator<T> where T: Game {
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum Evaluators {
+pub enum Stack4Evaluators {
+    Simple(SimpleEval),
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub enum Connect4Evaluators {
     Simple(SimpleEval),
     Lines(LinesEval),
     CNN(CNNEval),
     Consequtive(ConsequtiveEval),
 }
 
-impl Evaluator<Connect4> for Evaluators {
+impl Evaluator<Connect4> for Connect4Evaluators {
     fn value(&self, board: &Connect4, player: Player) -> f64 {
         match self {
-            Evaluators::Simple(ref eval) => {eval.value(board, player)},
-            Evaluators::Lines(ref eval) => {eval.value(board, player)},
-            Evaluators::CNN(ref eval) => {eval.value(board, player)},
-            Evaluators::Consequtive(ref eval) => {eval.value(board, player)},
+            Connect4Evaluators::Simple(ref eval) => {eval.value(board, player)},
+            Connect4Evaluators::Lines(ref eval) => {eval.value(board, player)},
+            Connect4Evaluators::CNN(ref eval) => {eval.value(board, player)},
+            Connect4Evaluators::Consequtive(ref eval) => {eval.value(board, player)},
         }
     }
     fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
         match self {
-            Evaluators::Simple(ref eval) => {eval.values(boards, player)},
-            Evaluators::Lines(ref eval) => {eval.values(boards, player)},
-            Evaluators::CNN(ref eval) => {eval.values(boards, player)},
-            Evaluators::Consequtive(ref eval) => {eval.values(boards, player)},
+            Connect4Evaluators::Simple(ref eval) => {eval.values(boards, player)},
+            Connect4Evaluators::Lines(ref eval) => {eval.values(boards, player)},
+            Connect4Evaluators::CNN(ref eval) => {eval.values(boards, player)},
+            Connect4Evaluators::Consequtive(ref eval) => {eval.values(boards, player)},
         }
     }
     fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
         match self {
-            Evaluators::Simple(ref eval) => {eval.gradient(board, player)},
-            Evaluators::Lines(ref eval) => {eval.gradient(board, player)},
-            Evaluators::CNN(ref eval) => {eval.gradient(board, player)},
-            Evaluators::Consequtive(ref eval) => {eval.gradient(board, player)},
+            Connect4Evaluators::Simple(ref eval) => {eval.gradient(board, player)},
+            Connect4Evaluators::Lines(ref eval) => {eval.gradient(board, player)},
+            Connect4Evaluators::CNN(ref eval) => {eval.gradient(board, player)},
+            Connect4Evaluators::Consequtive(ref eval) => {eval.gradient(board, player)},
         }
     }
     fn apply_update(&mut self, update: &[f64]) {
         match self {
-            Evaluators::Simple(ref mut eval) => {<SimpleEval as Evaluator<Connect4>>::apply_update(eval,update)},
-            Evaluators::Lines(ref mut eval) => {<LinesEval as Evaluator<Connect4>>::apply_update(eval, update)},
-            Evaluators::CNN(ref mut eval) => {<CNNEval as Evaluator<Connect4>>::apply_update(eval, update)},
-            Evaluators::Consequtive(ref mut eval) => {<ConsequtiveEval as Evaluator<Connect4>>::apply_update(eval, update)},
+            Connect4Evaluators::Simple(ref mut eval) => {<SimpleEval as Evaluator<Connect4>>::apply_update(eval,update)},
+            Connect4Evaluators::Lines(ref mut eval) => {<LinesEval as Evaluator<Connect4>>::apply_update(eval, update)},
+            Connect4Evaluators::CNN(ref mut eval) => {<CNNEval as Evaluator<Connect4>>::apply_update(eval, update)},
+            Connect4Evaluators::Consequtive(ref mut eval) => {<ConsequtiveEval as Evaluator<Connect4>>::apply_update(eval, update)},
         }
     }
     fn get_params(&self) -> Vec<f64> {
         match self {
-            Evaluators::Simple(ref eval) => {<SimpleEval as Evaluator<Connect4>>::get_params(eval)},
-            Evaluators::Lines(ref eval) => {<LinesEval as Evaluator<Connect4>>::get_params(eval)},
-            Evaluators::CNN(ref eval) => {<CNNEval as Evaluator<Connect4>>::get_params(eval)},
-            Evaluators::Consequtive(ref eval) => {<ConsequtiveEval as Evaluator<Connect4>>::get_params(eval)},
+            Connect4Evaluators::Simple(ref eval) => {<SimpleEval as Evaluator<Connect4>>::get_params(eval)},
+            Connect4Evaluators::Lines(ref eval) => {<LinesEval as Evaluator<Connect4>>::get_params(eval)},
+            Connect4Evaluators::CNN(ref eval) => {<CNNEval as Evaluator<Connect4>>::get_params(eval)},
+            Connect4Evaluators::Consequtive(ref eval) => {<ConsequtiveEval as Evaluator<Connect4>>::get_params(eval)},
         }
     }
 }
 
 
-impl Evaluator<Stack4> for Evaluators {
+impl Evaluator<Stack4> for Stack4Evaluators {
     fn value(&self, board: &Stack4, player: Player) -> f64 {
-        todo!()
+        match self {
+            Stack4Evaluators::Simple(ref eval) => {eval.value(board, player)},
+        }
     }
     fn values(&self, boards: &Vec<Stack4>, player: Player) -> Vec<f64> {
-        todo!()
+        match self {
+            Stack4Evaluators::Simple(ref eval) => {eval.values(boards, player)},
+        }
     }
     fn gradient(&self, board: &Stack4, player: Player) -> Vec<f64> {
-        todo!()
+        match self {
+            Stack4Evaluators::Simple(ref eval) => {eval.gradient(board, player)},
+        }
     }
     fn apply_update(&mut self, update: &[f64]) {
-        todo!()
+        match self {
+            Stack4Evaluators::Simple(ref mut eval) => {<SimpleEval as Evaluator<Stack4>>::apply_update(eval,update)},
+        }
     }
     fn get_params(&self) -> Vec<f64> {
-        todo!()
+        match self {
+            Stack4Evaluators::Simple(ref eval) => {<SimpleEval as Evaluator<Stack4>>::get_params(eval)},
+        }
     }
 }

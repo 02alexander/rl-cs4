@@ -1,5 +1,5 @@
 use crate::games::connect4::{Connect4, BOARD_HEIGHT, BOARD_WIDTH};
-use crate::games::{Player, GameState, TileStates, Game};
+use crate::games::{Player, GameState, Game};
 use super::Evaluator;
 use anyhow::Result;
 use tch::nn::{ModuleT, VarStore};

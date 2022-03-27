@@ -4,8 +4,7 @@ use crate::games::{Game, Player, GameState};
 use super::Evaluator;
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
-pub struct SimpleEval {
-}
+pub struct SimpleEval {}
 
 impl SimpleEval {
     pub fn new() -> SimpleEval {

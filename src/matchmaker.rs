@@ -1,21 +1,27 @@
 
-use crate::games::connect4::{Connect4, Action};
 use crate::games::{Player, GameState, Game};
 
-pub trait Agent {
-    fn get_action(&self, board: &Connect4, player: Player) -> Action;
-    fn get_action_explored(&self, board: &Connect4, player: Player) -> (Action, bool) {
+pub trait Agent<G> 
+    where
+        G: Game
+{
+    fn get_action(&self, board: &G, player: Player) -> G::Action;
+    fn get_action_explored(&self, board: &G, player: Player) -> (G::Action, bool) {
         (self.get_action(board, player), false)
     }
 }
 
 
-pub struct MatchMaker<'a> {
-    agents: Vec<&'a dyn Agent>, // Currently only works with 2 agents.
+pub struct MatchMaker<'a, G> {
+    agents: Vec<&'a dyn Agent<G>>, // Currently only works with 2 agents.
     hist: Vec<(usize, usize, GameState)>, // (idx of red agent, idx of yellow agent, result)
 }
 
-impl<'a> MatchMaker<'a> {
+impl<'a, G> MatchMaker<'a, G>
+    where 
+        G: Game,
+        G::Action: Copy
+{
     pub fn new() -> Self {
         MatchMaker {
             agents: Vec::new(),
@@ -23,10 +29,10 @@ impl<'a> MatchMaker<'a> {
         }
     }
 
-    pub fn add_agent(&mut self, agent: &'a dyn Agent) {
+    pub fn add_agent(&mut self, agent: &'a dyn Agent<G>) {
         self.agents.push(agent);
     }
-    pub fn update_agent(&mut self, index: usize, new_agent: &'a dyn Agent) {
+    pub fn update_agent(&mut self, index: usize, new_agent: &'a dyn Agent<G>) {
         self.agents[index] = new_agent
     }
 
@@ -42,7 +48,7 @@ impl<'a> MatchMaker<'a> {
             };
             let end_board = play_game(&*self.agents[idxagents[0]], &*self.agents[idxagents[1]]);
             
-            self.hist.push((idxagents[0], idxagents[1], end_board.last().unwrap().game_state));
+            self.hist.push((idxagents[0], idxagents[1], end_board.last().unwrap().game_state()));
         }
     }
 
@@ -151,17 +157,22 @@ fn movmean(v: &Vec<f64>, n: usize) -> Vec<f64> {
 // returns the board after every move. which means that it excludes starting position but includes end position.
 // p1 always starts.
 // p1 is Player::Red, p2 is Player::Yellow.
-pub fn play_game(p1: &dyn Agent, p2: &dyn Agent) -> Vec<Connect4> {
+pub fn play_game<T>(p1: &dyn Agent<T>, p2: &dyn Agent<T>) -> Vec<T>
+    where
+        T: Game
+{
     let mut boards = Vec::new();
-    let mut board = Connect4::new();
+    let mut board = T::new();
 
     let mut b = true;
-    board.cur_player = Player::Red;
-    while board.game_state == GameState::InProgress {
-        let action = if b {
-            p1.get_action(&board, board.cur_player)
+    let starting_player = board.cur_player();
+    let red_is_starting = starting_player == Player::Red;
+    //board.cur_player() = Player::Red;
+    while board.game_state() == GameState::InProgress {
+        let action = if b == red_is_starting {
+            p1.get_action(&board, board.cur_player())
         } else {
-            p2.get_action(&board, board.cur_player)
+            p2.get_action(&board, board.cur_player())
         };
         board.play_action(action);
         b = !b;

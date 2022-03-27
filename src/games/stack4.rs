@@ -1,6 +1,7 @@
 
 use serde::{Serialize, Deserialize};
-use crate::games::{Player, GameState, TileStates};
+use crate::games::{Player, GameState};
+use crate::matchmaker::Agent;
 use crate::games::Game;
 use std::fmt;
 use std::io::BufRead;
@@ -19,13 +20,6 @@ pub struct Stack4 {
 }
 
 impl Stack4 {
-    pub fn new() -> Self {
-        Self {
-            board: 0,
-            cur_player: Player::Red,
-            game_state: GameState::InProgress
-        }
-    }
 
     pub fn player_won(&self, piece_pos: [usize; 2]) -> bool {
         let directions: [[i32;2];4] = [[1,0],[0,1],[-1,1], [1,1]];
@@ -135,10 +129,64 @@ impl Stack4 {
             }
         }
     }
+
+    pub fn user_vs_agent(agent: &dyn Agent<Stack4>) {
+        let mut board = Stack4::new();
+        let p = board.cur_player;
+    
+        let mut actions = Vec::new();
+    
+        loop {
+            println!("{:?}", board);
+            println!("{:?}", board.game_state);
+            println!("{:?}", actions);
+            let (action, reverse) = Self::get_move_from_user(&board);
+            if reverse {
+                board.reverse_last_action(actions[actions.len()-1]);
+                board.reverse_last_action(actions[actions.len()-2]);
+                actions.remove(actions.len()-1);
+                actions.remove(actions.len()-1);
+                continue
+            } else {
+                actions.push(action);
+                board.play_action(action);
+                match board.game_state {
+                    GameState::Draw => {
+                        println!("Draw");
+                    }
+                    GameState::InProgress => {},
+                    GameState::Won(player) => {
+                        println!("{:?} won", player);   
+                    }
+                }
+            }
+            let action = agent.get_action(&board, !p);
+            actions.push(action);
+            board.play_action(action);
+            match board.game_state {
+                GameState::Draw => {
+                    println!("Draw");
+                }
+                GameState::InProgress => {},
+                GameState::Won(player) => {
+                    println!("{:?} won", player);   
+                }
+            }
+        }
+    
+    }
 }
 
 impl Game for Stack4 {
     type Action = (usize, usize); // x,y coordinates of the placed piece.
+
+    fn new() -> Self {
+        Self {
+            board: 0,
+            cur_player: Player::Red,
+            game_state: GameState::InProgress
+        }
+    }
 
     // Assumes that 'action' is a legal action.
     fn play_action(&mut self, action: Self::Action) {
@@ -157,6 +205,8 @@ impl Game for Stack4 {
 
     fn reverse_last_action(&mut self, last_action: Self::Action) {
         self.set(last_action.0, last_action.1, 0);
+        self.game_state = GameState::InProgress;
+        self.cur_player = !self.cur_player;
     }
 
     fn game_state(&self) -> GameState {
@@ -190,7 +240,6 @@ impl Game for Stack4 {
         }
         let set: std::collections::HashSet<_> = actions.drain(..).collect();
         actions.extend(set);
-        println!("{}", actions.len());
         actions
     }
 

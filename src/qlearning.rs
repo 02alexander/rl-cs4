@@ -1,5 +1,5 @@
 
-use crate::evaluators::{Evaluator, Evaluators};
+use crate::evaluators::{Evaluator, Connect4Evaluators};
 use crate::games::connect4::{Connect4};
 use crate::games::{GameState, Player, Game};
 use crate::policies::Policy;
@@ -12,7 +12,7 @@ use serde::{Serialize, Deserialize};
 // returns the board after every move. which means that it excludes starting position but includes end position.
 // p1 always starts.
 // p1 is Player::Red, p2 is Player::Yellow.
-pub fn episode(p1: &dyn Agent, p2: &dyn Agent) -> Vec<(Connect4, bool)> {
+pub fn episode(p1: &dyn Agent<Connect4>, p2: &dyn Agent<Connect4>) -> Vec<(Connect4, bool)> {
     let mut boards = Vec::new();
     let mut board = Connect4::new();
 
@@ -42,9 +42,9 @@ pub trait RL {
     fn self_play(&mut self);
 
     // Learns from playing against opponent.
-    fn play_against(&mut self, opponent: &dyn Agent);
+    fn play_against(&mut self, opponent: &dyn Agent<Connect4>);
     
-    fn get_evaluator<'a>(&'a self) -> &'a Evaluators;
+    fn get_evaluator<'a>(&'a self) -> &'a Connect4Evaluators;
     fn get_policy<'a>(&'a self) -> &'a dyn Policy;
     fn get_depth(&self) -> u32;
     fn scores(&self) -> Option<&Vec<f64>> {
@@ -55,7 +55,7 @@ pub trait RL {
 
 #[derive(Serialize, Deserialize)]
 pub struct QLearning {
-    evaluator: Evaluators,
+    evaluator: Connect4Evaluators,
     exploration_policy: Box<dyn Policy>,
     pub step_size: f64,
     pub discount: f64,
@@ -72,7 +72,7 @@ pub struct QLearning {
 }
 
 impl QLearning { 
-    pub fn new(evaluator: Evaluators, exploration_policy: Box<dyn Policy>, step_size: f64) -> QLearning {
+    pub fn new(evaluator: Connect4Evaluators, exploration_policy: Box<dyn Policy>, step_size: f64) -> QLearning {
         QLearning {
             evaluator,
             exploration_policy,
@@ -140,7 +140,7 @@ impl RL for QLearning {
             for state in &symmetric_states {
                 let current_av = self.evaluator.value(state, player);
                 let deltas: Vec<_> = self.eligibilty_trace.as_ref().unwrap().iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
-                <Evaluators as Evaluator<Connect4>>::apply_update(&mut self.evaluator, &deltas);
+                <Connect4Evaluators as Evaluator<Connect4>>::apply_update(&mut self.evaluator, &deltas);
             }
         }
     }
@@ -148,12 +148,12 @@ impl RL for QLearning {
     fn self_play(&mut self) {
         let agenta = MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
         let agentb = MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
-        let game_hist = episode(&agenta, &agentb);
+        let game_hist: Vec<(Connect4, bool)> = episode(&agenta, &agentb);
         self.update(&game_hist, Player::Red);
         self.update(&game_hist, Player::Yellow);
     }
 
-    fn play_against(&mut self, opponent: &dyn Agent) {
+    fn play_against(&mut self, opponent: &dyn Agent<Connect4>) {
         let agent = BatchMinimaxAgent::new(&self.evaluator, self.depth, self.depth);
         let (game_hist, selfp) = if fastrand::bool() {
             (episode(&agent, opponent), Player::Red)
@@ -175,7 +175,7 @@ impl RL for QLearning {
         self.update(&game_hist, selfp);
     }
 
-    fn get_evaluator<'a>(&'a self) -> &'a Evaluators {
+    fn get_evaluator<'a>(&'a self) -> &'a Connect4Evaluators {
         &self.evaluator
     }
     fn get_policy<'a>(&'a self) -> &'a dyn Policy {

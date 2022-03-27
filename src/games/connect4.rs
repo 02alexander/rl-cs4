@@ -1,6 +1,5 @@
 
 use std::fmt;
-use std::ops;
 use serde::{Serialize, Deserialize};
 use crate::games::{Player, GameState};
 use crate::games::Game;
@@ -28,13 +27,6 @@ pub struct Connect4 {
 
 
 impl Connect4 {
-    pub fn new() -> Self {
-        Connect4 {
-            board: 0,
-            cur_player: Player::Red,
-            game_state: GameState::InProgress,
-        }
-    }
 
     pub fn player_won(&self, piece_pos: [usize; 2]) -> bool {
         let directions: [[i32;2];4] = [[1,0],[0,1],[-1,1], [1,1]];
@@ -139,6 +131,14 @@ impl Connect4 {
 
 impl Game for Connect4 {
     type Action = usize;
+
+    fn new() -> Self {
+        Connect4 {
+            board: 0,
+            cur_player: Player::Red,
+            game_state: GameState::InProgress,
+        }
+    }
 
     // Plays action for player self.cur_player
     fn play_action(&mut self, action: Action) {

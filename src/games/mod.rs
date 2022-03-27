@@ -4,11 +4,13 @@ pub mod connect4;
 
 use serde::{Serialize, Deserialize};
 use std::ops;
+use std::fmt;
 
 // A two player with three possible outcomes, win for either player or a draw.
-pub trait Game: Clone {
+pub trait Game: Clone+fmt::Debug {
     type Action;
-
+    
+    fn new() -> Self;
     fn play_action(&mut self, action: Self::Action);
     fn reverse_last_action(&mut self, last_action: Self::Action);
     fn game_state(&self) -> GameState;

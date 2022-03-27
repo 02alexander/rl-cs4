@@ -1,40 +1,45 @@
 
-use crate::evaluators::{Evaluator, Evaluators};
+use crate::evaluators::{Evaluator};
 use crate::search::*;
 use crate::matchmaker::Agent;
-use crate::games::connect4::{Connect4, Action};
 use crate::games::{Player, Game};
 use crate::policies::Policy;
 
-pub struct MinimaxAgent<'a> {
-    evaluator: &'a Evaluators,
+pub struct MinimaxAgent<'a, T> {
+    evaluator: &'a T,
     depth: u32,
 }
 
-impl<'a> MinimaxAgent<'a> {
-    pub fn new(evaluator: &'a Evaluators, depth: u32) -> Self {
-        MinimaxAgent {
+impl<'a, T> MinimaxAgent<'a, T> {
+    pub fn new(evaluator: &'a T, depth: u32) -> Self {
+        MinimaxAgent::<T> {
             evaluator,
             depth,
         }
     }
 }
 
-impl<'a> Agent for MinimaxAgent<'a> {
-    fn get_action(&self, board: &Connect4, player: Player) -> Action {
-        abnegamax_best_action(board, self.depth, &*self.evaluator, player)
+impl<'a, T, G> Agent<G> for MinimaxAgent<'a, T>
+    where
+        G: Game,
+        G::Action: Copy,
+        T: Evaluator<G>
+{
+    fn get_action(&self, board: &G, player: Player) -> G::Action 
+    {
+        abnegamax_best_action(board, self.depth, self.evaluator, player)
     }
 }
 
-pub struct BatchMinimaxAgent<'a> {
-    evaluator: &'a Evaluators,
+pub struct BatchMinimaxAgent<'a, T> {
+    evaluator: &'a T,
     depth: u32,
     batch_depth: u32,
 }
 
-impl<'a> BatchMinimaxAgent<'a> {
-    pub fn new(evaluator: &'a Evaluators, depth: u32, batch_depth: u32) -> Self {
-        BatchMinimaxAgent {
+impl<'a, T> BatchMinimaxAgent<'a, T> {
+    pub fn new(evaluator: &'a T, depth: u32, batch_depth: u32) -> Self {
+        BatchMinimaxAgent::<T> {
             evaluator,
             depth,
             batch_depth,
@@ -42,23 +47,28 @@ impl<'a> BatchMinimaxAgent<'a> {
     }
 }
 
-impl<'a> Agent for BatchMinimaxAgent<'a> {
-    fn get_action(&self, board: &Connect4, player: Player) -> Action {
-        batch_abnegamax_best_action(board, self.depth, self.batch_depth, &*self.evaluator, player)
+impl<'a, T, G> Agent<G> for BatchMinimaxAgent<'a, T> 
+    where
+        G: Game,
+        G::Action: Copy,
+        T: Evaluator<G>
+{
+    fn get_action(&self, board: &G, player: Player) -> G::Action {
+        batch_abnegamax_best_action(board, self.depth, self.batch_depth, self.evaluator, player)
     }
 }
 
 
-pub struct MinimaxPolicyAgent<'a> {
-    evaluator: &'a Evaluators,
+pub struct MinimaxPolicyAgent<'a, T> {
+    evaluator: &'a T,
     policy: &'a dyn Policy,
     depth: u32,
     pub batch_depth: u32,
 }
 
-impl<'a> MinimaxPolicyAgent<'a> {
-    pub fn new(evaluator: &'a Evaluators, policy: &'a dyn Policy, depth: u32) -> Self {
-        MinimaxPolicyAgent {
+impl<'a, T> MinimaxPolicyAgent<'a, T> {
+    pub fn new(evaluator: &'a T, policy: &'a dyn Policy, depth: u32) -> Self {
+        MinimaxPolicyAgent::<T> {
             evaluator,
             policy,
             depth,
@@ -67,16 +77,21 @@ impl<'a> MinimaxPolicyAgent<'a> {
     }
 }
 
-impl<'a> Agent for MinimaxPolicyAgent<'a> {
+impl<'a, T, G> Agent<G> for MinimaxPolicyAgent<'a, T> 
+    where
+        G: Game,
+        G::Action: Copy,
+        T: Evaluator<G>
+{
     // If a move is guaranteed to be winning it will always be taken.
     // If a move is guaranteed to be losing it will never be taken.
     // The policy will pick among the remaining moves that are not losing.
-    fn get_action(&self, board: &Connect4, player: Player) -> Action {
+    fn get_action(&self, board: &G, player: Player) -> G::Action {
         self.get_action_explored(board,player).0
     }
 
     // Returns chosen action and a boolean that is true if it was a exploring move
-    fn get_action_explored(&self, board: &Connect4, player: Player) -> (Action, bool) {
+    fn get_action_explored(&self, board: &G, player: Player) -> (G::Action, bool) {
         let mut board = board.clone();
         let mut winning_moves = Vec::new();
         let mut avs = Vec::new();

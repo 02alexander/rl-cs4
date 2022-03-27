@@ -1,6 +1,6 @@
 
 use serde::{Serialize, Deserialize};
-use crate::games::{Game, Player, GameState, TileStates};
+use crate::games::{Player, GameState, TileStates};
 use crate::games::connect4::{Connect4, BOARD_HEIGHT, BOARD_WIDTH};
 use super::Evaluator;
 
