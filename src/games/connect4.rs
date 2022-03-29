@@ -166,7 +166,7 @@ impl Game for Connect4 {
         self.cur_player = !self.cur_player;
     }
 
-    fn legal_actions(&self) -> Vec<Action> {
+    fn legal_actions(&self) -> Box<dyn Iterator<Item=Action>> {
 
         // it's 2.5 time faster to use Vec::with_capacity than Vec::new
         let mut v = Vec::with_capacity(BOARD_WIDTH); 
@@ -175,7 +175,7 @@ impl Game for Connect4 {
                 v.push(i);
             }
         }
-        v
+        Box::new(v.into_iter())
     }
 
     fn game_state(&self) -> GameState {

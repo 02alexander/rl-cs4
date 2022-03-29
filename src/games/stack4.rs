@@ -7,16 +7,26 @@ use std::fmt;
 use std::io::BufRead;
 
 const BOARD_SIZE: usize = 8;
+const DIRS: [[i32;2];4] = [[1,0], [0,1], [-1,0], [0, -1]];
+const STARTS: [[usize;2];4] = [[0,0], [BOARD_SIZE-1, 0], [BOARD_SIZE-1, BOARD_SIZE-1], [0, BOARD_SIZE-1]];
+
 
 type Action = (usize, usize);
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Stack4 {
     // tile on board takes up 2 bits, 0 for empty, 1 for red, 2 for yellow. 
     // starts in bottom left corner and goes row by row.
     pub board: u128,
     pub cur_player: Player,
     pub game_state: GameState,
+}
+
+struct LegalActions {
+    board: Stack4,
+    side: usize,
+    c: i32,
+    prev_actions: u64 // Bitboard of actions already iterated over.
 }
 
 impl Stack4 {
@@ -55,7 +65,7 @@ impl Stack4 {
     }
 
     fn is_full(&self) -> bool {
-        self.legal_actions().len() == 0
+        self.legal_actions().count() == 0
     }
 
     fn in_board(x: i32, y: i32) -> bool {
@@ -75,7 +85,7 @@ impl Stack4 {
     // returns (action, is_reverse)
     fn get_move_from_user(board: &Stack4) -> (Action, bool) {
         let stdin = std::io::stdin();
-        let legal_actions = board.legal_actions();
+        let mut legal_actions: Vec<_> = board.legal_actions().collect();
 
         fn parse_cord(s: &str) -> Option<(usize,usize)> {
             let mut numbers = s.split(',');
@@ -217,30 +227,8 @@ impl Game for Stack4 {
         self.cur_player
     }
 
-    fn legal_actions(&self) -> Vec<Self::Action> {
-        let dirs = [[1,0], [0,1], [-1,0], [0, -1]];
-        let starts = [[0,0], [BOARD_SIZE-1, 0], [BOARD_SIZE-1, BOARD_SIZE-1], [0, BOARD_SIZE-1]];
-        let mut actions = Vec::with_capacity(BOARD_SIZE*4);
-        for (dir, start) in dirs.iter().zip(starts) {
-            let inward_direction = [-dir[1], dir[0]];
-            for c in 0..BOARD_SIZE as i32 {
-                let cur_start = [start[0] as i32+dir[0] as i32*c, start[1] as i32+dir[1] as i32*c];
-                for k in 0..BOARD_SIZE {
-                    let cur_cord = [ 
-                        (cur_start[0]+k as i32*inward_direction[0]) as usize, 
-                        (cur_start[1]+k as i32*inward_direction[1]) as usize
-                    ];
-                    // 0 represents TileStates::Empty
-                    if self.get(cur_cord[0], cur_cord[1]) == 0 {
-                        actions.push((cur_cord[0], cur_cord[1]));
-                        break
-                    }
-                }
-            }
-        }
-        let set: std::collections::HashSet<_> = actions.drain(..).collect();
-        actions.extend(set);
-        actions
+    fn legal_actions(&self) -> Box<dyn Iterator<Item=Action>> {
+        Box::new(LegalActions { board: *self, side: 0, c: 0, prev_actions: 0})
     }
 
     fn vectorize(&self, player: Player) -> Vec<f64> {
@@ -266,10 +254,55 @@ impl Game for Stack4 {
     }
 }
 
+impl<'a> Iterator for LegalActions {
+    type Item = Action;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.side < 4 {
+            let dir = DIRS[self.side];
+            let start = STARTS[self.side];
+            let inward_direction = [-dir[1], dir[0]];
+            while self.c < BOARD_SIZE as i32 {
+                self.c += 1;
+                let cur_start = [
+                    start[0] as i32+dir[0] as i32*self.c,
+                    start[1] as i32+dir[1] as i32*self.c
+                ];
+                for k in 0..BOARD_SIZE {
+                    let cur_cord = [ 
+                        (cur_start[0]+k as i32*inward_direction[0]), 
+                        (cur_start[1]+k as i32*inward_direction[1])
+                    ];
+                    if cur_cord[0] < 0 || cur_cord[1] < 0 || cur_cord[0] >= BOARD_SIZE as i32 || cur_cord[1] >= BOARD_SIZE as i32 {
+                        continue;
+                    }
+                    let cur_cord = [cur_cord[0] as usize, cur_cord[1] as usize];
+                    // 0 represents TileStates::Empty
+                    if self.board.get(cur_cord[0], cur_cord[1]) == 0 {
+                        let mask = 1 << (cur_cord[0] + BOARD_SIZE*cur_cord[1]);
+                        let res = self.prev_actions & mask; 
+                        if res == 0 {
+                            self.prev_actions += mask;
+                            return Some((cur_cord[0], cur_cord[1]));
+                        } else {
+                            break
+                        }
+                    }
+                }
+            } 
+            if self.c == BOARD_SIZE as i32 {
+                self.c = 0;
+                self.side += 1;
+            }
+        }
+        None
+    }
+}
+
 impl fmt::Debug for Stack4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = String::new();
-        let legal_actions = self.legal_actions();
+        let legal_actions: Vec<_> = self.legal_actions().collect();
         for y in (0..BOARD_SIZE).rev() {
             for x in 0..BOARD_SIZE {
                 match self.get(x,y) {

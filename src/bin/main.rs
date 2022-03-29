@@ -80,8 +80,8 @@ fn main() {
     let evaluator = SimpleEval::new();
     let agent1 = crate::gamesolver::agents::MinimaxAgent::new(&evaluator, 4);
     let agent2 = crate::gamesolver::agents::MinimaxAgent::new(&evaluator, 4);
-    crate::gamesolver::matchmaker::play_game::<Stack4>(&agent1, &agent2);
-    //gamesolver::games::stack4::Stack4::user_vs_agent(&agent);
+    //crate::gamesolver::matchmaker::play_game::<Stack4>(&agent1, &agent2);
+    gamesolver::games::stack4::Stack4::user_vs_agent(&agent1);
 
     return ();
     

@@ -95,7 +95,7 @@ impl<'a, T, G> Agent<G> for MinimaxPolicyAgent<'a, T>
         let mut board = board.clone();
         let mut winning_moves = Vec::new();
         let mut avs = Vec::new();
-        let actions = board.legal_actions();
+        let actions:Vec<_> = board.legal_actions().collect();
         for action in &actions {
             board.play_action(*action);
             let v = -batch_negamax(&board, self.depth-1, self.evaluator, !player);

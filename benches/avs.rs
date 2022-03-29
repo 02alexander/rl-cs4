@@ -1,7 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 extern crate gamesolver;
-use gamesolver::connect4::{self, Connect4};
+use gamesolver::games::connect4::{self, Connect4};
+use gamesolver::games::Game;
+use gamesolver::games::stack4::Stack4;
 use gamesolver::search::{*};
 use gamesolver::evaluators::{ConsequtiveEval, LinesEval, SimpleEval, CNNEval, Evaluator};
 use tch::nn::{ModuleT};
@@ -12,7 +14,7 @@ fn consecutive_eval_benchmark(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = ConsequtiveEval::new();
@@ -25,7 +27,7 @@ fn lines_eval_benchmark(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = LinesEval::new();
@@ -38,7 +40,7 @@ fn cnn_eval_benchmark(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
@@ -51,7 +53,7 @@ fn cnn_eval_forward(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
@@ -76,7 +78,7 @@ fn cnn_eval_forward_no_grad(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
@@ -103,7 +105,7 @@ fn cnn_eval_forward_100(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
@@ -132,7 +134,7 @@ fn cnn_eval_forward_100_no_grad(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
@@ -161,7 +163,7 @@ fn cnn_search_batch(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
@@ -174,12 +176,12 @@ fn cnn_search(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
     c.bench_function("CNNEval:search_depth=5", |b| b.iter(||{
-        black_box(abpruning_best_action(&board, 5, &evaluator, p));
+        black_box(abnegamax_best_action(&board, 5, &evaluator, p));
     }));
 }
 
@@ -188,15 +190,23 @@ fn search_benchmark(c: &mut Criterion) {
     let mut board = Connect4::new();
     let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
-        board.play_move(action);
+        board.play_action(action);
     }
     let p = board.cur_player;
     let evaluator = SimpleEval::new();
     c.bench_function("SimpleEval, depth=9", |b| b.iter(||{
-        black_box(abpruning_action_values(&mut board, 9, &evaluator, p))
+        black_box(abnegamax_best_action(&mut board, 9, &evaluator, p))
     }));
 }
 
+fn stack4search(c: &mut Criterion) {
+    let mut board = Stack4::new();
+    let evaluator = SimpleEval::new();
+    let p = board.cur_player;
+    c.bench_function("Stack4::SimpleEval, depth=4", |b| b.iter(|| {
+        black_box(abnegamax_best_action(&mut board, 4, &evaluator, p))
+    }));
+}
 
 
 criterion_group!(
@@ -211,6 +221,7 @@ criterion_group!(
     cnn_eval_forward_100,
     cnn_search,
     cnn_search_batch,
+    stack4search
 );
 //criterion_group!(benches, cnn_eval_benchmark);
 criterion_main!(benches);

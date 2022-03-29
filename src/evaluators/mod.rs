@@ -3,10 +3,10 @@ pub mod consequtive;
 pub mod lines;
 pub mod simple;
 
-use consequtive::ConsequtiveEval;
-use lines::LinesEval;
-use simple::SimpleEval;
-use cnn::CNNEval;
+pub use consequtive::ConsequtiveEval;
+pub use lines::LinesEval;
+pub use simple::SimpleEval;
+pub use cnn::CNNEval;
 use serde::{Serialize, Deserialize};
 
 use crate::games::{Game, Player};

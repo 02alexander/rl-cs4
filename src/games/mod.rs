@@ -15,7 +15,7 @@ pub trait Game: Clone+fmt::Debug {
     fn reverse_last_action(&mut self, last_action: Self::Action);
     fn game_state(&self) -> GameState;
     fn cur_player(&self) -> Player;
-    fn legal_actions(&self) -> Vec<Self::Action>;
+    fn legal_actions(&self) -> Box<dyn Iterator<Item=Self::Action>>;
     fn vectorize(&self, player: Player) -> Vec<f64>;
     fn uid(&self) -> u128;
 }
