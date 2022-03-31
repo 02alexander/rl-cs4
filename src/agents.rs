@@ -1,9 +1,19 @@
 
 use crate::evaluators::{Evaluator};
 use crate::search::*;
-use crate::matchmaker::Agent;
 use crate::games::{Player, Game};
 use crate::policies::Policy;
+
+pub trait Agent<G> 
+    where
+        G: Game
+{
+    fn get_action(&self, board: &G, player: Player) -> G::Action;
+    fn get_action_explored(&self, board: &G, player: Player) -> (G::Action, bool) {
+        (self.get_action(board, player), false)
+    }
+}
+
 
 pub struct MinimaxAgent<'a, T> {
     evaluator: &'a T,

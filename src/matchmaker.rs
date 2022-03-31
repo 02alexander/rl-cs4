@@ -1,16 +1,12 @@
 
 use crate::games::{Player, GameState, Game};
+use crate::agents::Agent;
+use std::fmt;
 
-pub trait Agent<G> 
-    where
-        G: Game
-{
-    fn get_action(&self, board: &G, player: Player) -> G::Action;
-    fn get_action_explored(&self, board: &G, player: Player) -> (G::Action, bool) {
-        (self.get_action(board, player), false)
-    }
+pub trait PlayableGame: fmt::Debug+Game {
+    // returns (action, true) if user choose an action or (_, false) if user wishes to reverse last action.
+    fn get_action_from_user(&self) -> (Self::Action, bool);
 }
-
 
 pub struct MatchMaker<'a, G> {
     agents: Vec<&'a dyn Agent<G>>, // Currently only works with 2 agents.
@@ -139,6 +135,81 @@ impl<'a, G> MatchMaker<'a, G>
     }
 }
 
+pub fn user_vs_user<G: PlayableGame>() {
+    let mut board = G::new();
+    let mut last_action: Option<G::Action> = None;
+    loop {
+        println!("{:?}", board);
+        println!("{:?}", board.game_state());
+        let (action, reverse) = board.get_action_from_user();
+        if reverse {
+            if let Some(last_action) = last_action {
+                board.reverse_last_action(last_action);
+            }
+        } else {
+            last_action = Some(action);
+            board.play_action(action);
+            match board.game_state() {
+                GameState::Draw => {
+                    println!("Draw");
+                }
+                GameState::InProgress => {},
+                GameState::Won(player) => {
+                    println!("{:?} won", player);   
+                }
+            }
+        }
+    }
+}
+
+pub fn user_vs_agent<G, A>(opponent: &A)
+    where
+        G: PlayableGame,
+        A: Agent<G>,
+{
+    let mut board = G::new();
+    let p = board.cur_player();
+
+    let mut actions = Vec::new();
+
+    loop {
+        println!("{:?}", board);
+        println!("{:?}", board.game_state());
+        let (action, reverse) = board.get_action_from_user();
+        if reverse {
+            board.reverse_last_action(actions[actions.len()-1]);
+            board.reverse_last_action(actions[actions.len()-2]);
+            actions.remove(actions.len()-1);
+            actions.remove(actions.len()-1);
+            continue
+        } else {
+            actions.push(action);
+            board.play_action(action);
+            match board.game_state() {
+                GameState::Draw => {
+                    println!("Draw");
+                }
+                GameState::InProgress => {},
+                GameState::Won(player) => {
+                    println!("{:?} won", player);   
+                }
+            }
+        }
+        let action = opponent.get_action(&board, !p);
+        actions.push(action);
+        board.play_action(action);
+        match board.game_state() {
+            GameState::Draw => {
+                println!("Draw");
+            }
+            GameState::InProgress => {},
+            GameState::Won(player) => {
+                println!("{:?} won", player);   
+            }
+        }
+    }
+}
+
 fn movmean(v: &Vec<f64>, n: usize) -> Vec<f64> {
     let mut avgs = Vec::new();
     let mut sm = 0.0;
@@ -157,12 +228,10 @@ fn movmean(v: &Vec<f64>, n: usize) -> Vec<f64> {
 // returns the board after every move. which means that it excludes starting position but includes end position.
 // p1 always starts.
 // p1 is Player::Red, p2 is Player::Yellow.
-pub fn play_game<T>(p1: &dyn Agent<T>, p2: &dyn Agent<T>) -> Vec<T>
-    where
-        T: Game
+pub fn play_game<G: Game>(p1: &dyn Agent<G>, p2: &dyn Agent<G>) -> Vec<G>
 {
     let mut boards = Vec::new();
-    let mut board = T::new();
+    let mut board = G::new();
 
     let mut b = true;
     let starting_player = board.cur_player();

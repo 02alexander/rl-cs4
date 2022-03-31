@@ -38,6 +38,7 @@ pub trait Evaluator<T> where T: Game {
 #[derive(Serialize, Deserialize)]
 pub enum Stack4Evaluators {
     Simple(SimpleEval),
+    Consequtive(ConsequtiveEval),
 }
 
 
@@ -97,26 +98,31 @@ impl Evaluator<Stack4> for Stack4Evaluators {
     fn value(&self, board: &Stack4, player: Player) -> f64 {
         match self {
             Stack4Evaluators::Simple(ref eval) => {eval.value(board, player)},
+            Stack4Evaluators::Consequtive(ref eval) => {eval.value(board, player)},
         }
     }
     fn values(&self, boards: &Vec<Stack4>, player: Player) -> Vec<f64> {
         match self {
             Stack4Evaluators::Simple(ref eval) => {eval.values(boards, player)},
+            Stack4Evaluators::Consequtive(ref eval) => {eval.values(boards, player)},
         }
     }
     fn gradient(&self, board: &Stack4, player: Player) -> Vec<f64> {
         match self {
             Stack4Evaluators::Simple(ref eval) => {eval.gradient(board, player)},
+            Stack4Evaluators::Consequtive(ref eval) => {eval.gradient(board, player)},
         }
     }
     fn apply_update(&mut self, update: &[f64]) {
         match self {
             Stack4Evaluators::Simple(ref mut eval) => {<SimpleEval as Evaluator<Stack4>>::apply_update(eval,update)},
+            Stack4Evaluators::Consequtive(ref mut eval) => {<ConsequtiveEval as Evaluator<Stack4>>::apply_update(eval,update)},
         }
     }
     fn get_params(&self) -> Vec<f64> {
         match self {
             Stack4Evaluators::Simple(ref eval) => {<SimpleEval as Evaluator<Stack4>>::get_params(eval)},
+            Stack4Evaluators::Consequtive(ref eval) => {<ConsequtiveEval as Evaluator<Stack4>>::get_params(eval)},
         }
     }
 }

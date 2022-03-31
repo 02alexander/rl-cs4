@@ -3,6 +3,9 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use crate::games::{Player, GameState};
 use crate::games::Game;
+use crate::matchmaker::PlayableGame;
+use std::io;
+use std::io::BufRead;
 
 pub const BOARD_WIDTH: usize = 7;
 pub const BOARD_HEIGHT: usize = 6;
@@ -228,6 +231,32 @@ impl fmt::Debug for Connect4 {
             s.push('\n');
         }
         write!(f, "{}", &s)
+    }
+}
+
+impl PlayableGame for Connect4 {
+    // returns (action, is_reverse)
+    fn get_action_from_user(&self) -> (Action, bool) {
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            let line = line.unwrap();
+            if line.as_bytes()[0] == 'z' as u8 {
+                return (0, true);
+            } else if let Ok(a) = line.parse::<usize>() {
+                if a < BOARD_WIDTH {
+                    if !self.is_valid_move(a) {
+                        println!("Column alread full");
+                        continue;
+                    }
+                    return (a, false);
+                } else {
+                    println!("Not in range 0..{}", BOARD_WIDTH);    
+                }
+            } else {
+                println!("Invalid input: try again");
+            }
+        }
+        panic!("Failed to get input from user");
     }
 }
 

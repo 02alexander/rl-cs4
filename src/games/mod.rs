@@ -8,7 +8,7 @@ use std::fmt;
 
 // A two player with three possible outcomes, win for either player or a draw.
 pub trait Game: Clone+fmt::Debug {
-    type Action;
+    type Action: Copy;
     
     fn new() -> Self;
     fn play_action(&mut self, action: Self::Action);

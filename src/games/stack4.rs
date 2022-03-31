@@ -1,8 +1,9 @@
 
 use serde::{Serialize, Deserialize};
 use crate::games::{Player, GameState};
-use crate::matchmaker::Agent;
+use crate::agents::Agent;
 use crate::games::Game;
+use crate::matchmaker::PlayableGame;
 use std::fmt;
 use std::io::BufRead;
 
@@ -64,11 +65,11 @@ impl Stack4 {
         false
     }
 
-    fn is_full(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         self.legal_actions().count() == 0
     }
 
-    fn in_board(x: i32, y: i32) -> bool {
+    pub fn in_board(x: i32, y: i32) -> bool {
         x >= 0 && y >= 0 && x < BOARD_SIZE as i32 && y < BOARD_SIZE as i32
     }
 
@@ -80,110 +81,6 @@ impl Stack4 {
 
     pub fn get(&self, x: usize, y:usize) -> u8 {
         3 & (self.board >> (2*(x+y*BOARD_SIZE))) as u8
-    }
-
-    // returns (action, is_reverse)
-    fn get_move_from_user(board: &Stack4) -> (Action, bool) {
-        let stdin = std::io::stdin();
-        let mut legal_actions: Vec<_> = board.legal_actions().collect();
-
-        fn parse_cord(s: &str) -> Option<(usize,usize)> {
-            let mut numbers = s.split(',');
-            let x = numbers.next()?.parse::<usize>().ok()?;
-            let y = numbers.next()?.parse::<usize>().ok()?;
-            Some((x,y))
-        }
-
-        for line in stdin.lock().lines() {
-            let line = line.unwrap();
-            if line.as_bytes()[0] == 'z' as u8 {
-                return ((0,0), true);
-            } else if let Some((x,y)) = parse_cord(&line) {
-                if x < BOARD_SIZE && y < BOARD_SIZE {
-                    if !legal_actions.iter().any(|c|*c==(x,y)) {
-                        println!("Illegal action");
-                        continue;
-                    }
-                    return ((x,y), false);
-                } else {
-                    println!("Not in range (0..{}, 0..{})", BOARD_SIZE, BOARD_SIZE);    
-                }
-            } else {
-                println!("Invalid input: try again");
-            }
-        }
-        panic!("Failed to get input from user");
-    }
-    
-    pub fn user_vs_user() {
-        let mut board = Stack4::new();
-        let mut last_action = (0,0);
-        loop {
-            println!("{:?}", board);
-            println!("{:?}", board.game_state);
-            let (action, reverse) = Stack4::get_move_from_user(&board);
-            if reverse {
-                board.reverse_last_action(last_action);
-            } else {
-                last_action = action;
-                board.play_action(action);
-                match board.game_state {
-                    GameState::Draw => {
-                        println!("Draw");
-                    }
-                    GameState::InProgress => {},
-                    GameState::Won(player) => {
-                        println!("{:?} won", player);   
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn user_vs_agent(agent: &dyn Agent<Stack4>) {
-        let mut board = Stack4::new();
-        let p = board.cur_player;
-    
-        let mut actions = Vec::new();
-    
-        loop {
-            println!("{:?}", board);
-            println!("{:?}", board.game_state);
-            println!("{:?}", actions);
-            let (action, reverse) = Self::get_move_from_user(&board);
-            if reverse {
-                board.reverse_last_action(actions[actions.len()-1]);
-                board.reverse_last_action(actions[actions.len()-2]);
-                actions.remove(actions.len()-1);
-                actions.remove(actions.len()-1);
-                continue
-            } else {
-                actions.push(action);
-                board.play_action(action);
-                match board.game_state {
-                    GameState::Draw => {
-                        println!("Draw");
-                    }
-                    GameState::InProgress => {},
-                    GameState::Won(player) => {
-                        println!("{:?} won", player);   
-                    }
-                }
-            }
-            let action = agent.get_action(&board, !p);
-            actions.push(action);
-            board.play_action(action);
-            match board.game_state {
-                GameState::Draw => {
-                    println!("Draw");
-                }
-                GameState::InProgress => {},
-                GameState::Won(player) => {
-                    println!("{:?} won", player);   
-                }
-            }
-        }
-    
     }
 }
 
@@ -324,5 +221,40 @@ impl fmt::Debug for Stack4 {
             s.push('\n');
         }
         write!(f, "{}", &s)
+    }
+}
+
+impl PlayableGame for Stack4 {
+    // returns (action, is_reverse)
+    fn get_action_from_user(&self) -> (Action, bool) {
+        let stdin = std::io::stdin();
+        let mut legal_actions: Vec<_> = self.legal_actions().collect();
+
+        fn parse_cord(s: &str) -> Option<(usize,usize)> {
+            let mut numbers = s.split(',');
+            let x = numbers.next()?.parse::<usize>().ok()?;
+            let y = numbers.next()?.parse::<usize>().ok()?;
+            Some((x,y))
+        }
+
+        for line in stdin.lock().lines() {
+            let line = line.unwrap();
+            if line.as_bytes()[0] == 'z' as u8 {
+                return ((0,0), true);
+            } else if let Some((x,y)) = parse_cord(&line) {
+                if x < BOARD_SIZE && y < BOARD_SIZE {
+                    if !legal_actions.iter().any(|c|*c==(x,y)) {
+                        println!("Illegal action");
+                        continue;
+                    }
+                    return ((x,y), false);
+                } else {
+                    println!("Not in range (0..{}, 0..{})", BOARD_SIZE, BOARD_SIZE);    
+                }
+            } else {
+                println!("Invalid input: try again");
+            }
+        }
+        panic!("Failed to get input from user");
     }
 }
