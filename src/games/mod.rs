@@ -13,10 +13,17 @@ pub trait Game: Clone+fmt::Debug {
     fn new() -> Self;
     fn play_action(&mut self, action: Self::Action);
     fn reverse_last_action(&mut self, last_action: Self::Action);
+    
     fn game_state(&self) -> GameState;
     fn cur_player(&self) -> Player;
+
     fn legal_actions(&self) -> Box<dyn Iterator<Item=Self::Action>>;
+
     fn vectorize(&self, player: Player) -> Vec<f64>;
+    
+    // Returns all states that are equal under symmetry including self.
+    fn symmetries(&self) -> Vec<Self>;
+
     fn uid(&self) -> u128;
 }
 

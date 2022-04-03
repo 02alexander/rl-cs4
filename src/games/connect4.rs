@@ -210,6 +210,9 @@ impl Game for Connect4 {
     fn uid(&self) -> u128 {
         self.board
     }
+    fn symmetries(&self) -> Vec<Self> {
+        vec![self.clone(), self.symmetry()]
+    }
 }
 
 

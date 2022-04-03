@@ -82,6 +82,58 @@ impl Stack4 {
     pub fn get(&self, x: usize, y:usize) -> u8 {
         3 & (self.board >> (2*(x+y*BOARD_SIZE))) as u8
     }
+
+    // Returns board rotated by 90*n degrees
+    fn rotation(&self, n: u32) -> Self {
+        let n = n%4;
+        let mut new_board = Stack4::new();
+        for x in 0..BOARD_SIZE as i32 {
+            for y in 0..BOARD_SIZE as i32 {
+                let (nx, ny) = Self::rotate(x, y, n);
+                new_board.set(nx as usize, ny as usize, self.get(x as usize, y as usize))
+            }
+        }
+        Stack4 {
+            board: new_board.board,
+            cur_player: new_board.cur_player,
+            game_state: new_board.game_state
+        }
+    }
+
+    // rotates a point 90*n degrees around the center of the board.
+    // center is located at (3.5, 3.5)
+    fn rotate(x: i32, y: i32, n: u32) -> (i32, i32) {
+        let n = n%4;
+        match n {
+            0 => ( x  ,  y  ),
+            1 => (-y+7,  x  ),
+            2 => (-x+7, -y+7),
+            3 => ( y  , -x+7),
+            _ => { panic!("Impossible!")}
+        }
+    }
+
+    // mirrors board around the middle of the board.
+    // assumes BOARD_SIZE = 8. so if BOARD_WIDTH changes then so must this function
+    pub fn mirror(&self) -> Self {
+        let mut col_mask: u128 = 0;
+        for _ in 0..BOARD_SIZE {
+            col_mask = (col_mask<<BOARD_SIZE*2)+3;
+        }
+        let mut new_board:u128 = 0;
+        for i in 0..BOARD_SIZE/2 {
+            new_board += (self.board&(col_mask<<(i*2)) ) << ((BOARD_SIZE/2 -i)*4-2);
+        }
+        for i in 0..BOARD_SIZE/2 {
+            new_board += (self.board&(col_mask<<( BOARD_SIZE/2 +i)*2)) >> (i)*4+2;
+        }
+        
+        Stack4 {
+            board: new_board,
+            cur_player: self.cur_player,
+            game_state: self.game_state,
+        }
+    }
 }
 
 impl Game for Stack4 {
@@ -146,6 +198,17 @@ impl Game for Stack4 {
         }
         v
     }
+
+    fn symmetries(&self) -> Vec<Self> {
+        let mut symmetries = Vec::with_capacity(8);
+        for n in 0..4 {
+            let rotated = self.rotation(n);
+            symmetries.push(rotated);
+            symmetries.push(rotated.mirror());
+        }
+        symmetries
+    }
+
     fn uid(&self) -> u128 {
         self.board
     }
