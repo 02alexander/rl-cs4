@@ -133,6 +133,7 @@ impl<G, E> RL<G, E> for QLearning<E>
                 }
             }
             let symmetric_states = states[i].symmetries();
+            //let symmetric_states = vec![states[i]];
             for state in &symmetric_states {
                 let grad: Vec<f64> = self.evaluator.gradient(state, player);
                 let et = self.eligibilty_trace.get_or_insert(vec![0.0;grad.len()]);
