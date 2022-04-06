@@ -54,15 +54,15 @@ pub trait RL<G, E> {
 
 #[derive(Serialize, Deserialize)]
 pub struct QLearning<E> {
-    evaluator: E,
-    exploration_policy: Box<dyn Policy>,
+    pub evaluator: E,
+    pub exploration_policy: Box<dyn Policy>,
     pub step_size: f64,
     pub discount: f64,
     pub depth: u32, // depth to search during training.
 
     // Stores scores when training against an opponent. 
     // Useful when measuring performance of algorithm.
-    scores: Vec<f64>,
+    pub scores: Vec<f64>,
 
     // Decay of eligibility trace.
     pub lambda: f64, 

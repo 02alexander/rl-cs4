@@ -29,9 +29,9 @@ impl CNNEval {
     }
 }
 
-impl Evaluator<Connect4> for CNNEval {
-    fn value(&self, board: &Connect4, player: Player) -> f64 {
-        match board.game_state {
+impl<G> Evaluator<G> for CNNEval where G: Game {
+    fn value(&self, board: &G, player: Player) -> f64 {
+        match board.game_state() {
             GameState::Won(p) => {
                 if p == player {1./0.} else {-1./0.}
             },
@@ -57,7 +57,7 @@ impl Evaluator<Connect4> for CNNEval {
             },
         }
     }
-    fn values(&self, boards: &Vec<Connect4>, player: Player) -> Vec<f64> {
+    fn values(&self, boards: &Vec<G>, player: Player) -> Vec<f64> {
         let mut vectorized_boards: Vec<f64> = Vec::with_capacity(42*boards.len());
         for board in boards {
             vectorized_boards.append(&mut board.vectorize(player));
@@ -69,7 +69,7 @@ impl Evaluator<Connect4> for CNNEval {
         out
     }
 
-    fn gradient(&self, board: &Connect4, player: Player) -> Vec<f64> {
+    fn gradient(&self, board: &G, player: Player) -> Vec<f64> {
         for var in self.vs.trainable_variables().iter_mut() {
             var.zero_grad();
         }

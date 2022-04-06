@@ -1,0 +1,67 @@
+
+#timer {
+	position: fixed;
+	left: 550px;
+	top: 420px;
+	width: 90px;
+	height: 120px;
+	display: none;
+}
+
+#timer-checkbox-div {
+	position: fixed;
+	left: 570px;
+	top: 230px;
+}
+
+#kryss-time-div {
+	display: inline-block;
+	width: 100%;
+	height: 50%;
+}
+
+#ring-time-div {
+	display: inline-block;
+	width: 100%;
+	height: 50%;
+}
+
+#game {
+	position: absolute;
+	top: 60px;
+	left: 60px;
+}
+
+#top-row {
+	position: fixed;
+	top: 0px;
+	left: 60px;
+	width: 480px;
+	height: 60px;
+}
+
+#left-row {
+	position: fixed;
+	top: 60px;
+	left: 0px;
+	width: 60px;
+	height: 480px;
+}
+
+#reset-button {
+	position: fixed;
+	left: 570px;
+	top: 270px;
+}
+
+#timer-set-form {
+	position: fixed;
+	top: 420px;
+	left: 670px;
+}
+
+#mike-check-box-div {
+	position: fixed;
+	top: 60px;
+	left: 570px;
+}

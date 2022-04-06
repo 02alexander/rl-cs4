@@ -215,8 +215,8 @@ fn main() {
     /*let evaluator = SimpleEval::new();
     let agent1 = MinimaxAgent::new(&evaluator, 4);
     //let agent2 = crate::gamesolver::agents::MinimaxAgent::new(&evaluator, 4);
-    //crate::gamesolver::matchmaker::play_game::<Stack4>(&agent1, &agent2);
-    user_vs_agent::<Stack4, MinimaxAgent<SimpleEval>>(&agent1);
+    crate::gamesolver::matchmaker::user_vs_user::<Stack4>();
+    //user_vs_agent::<Stack4, MinimaxAgent<SimpleEval>>(&agent1);
 
     return ();
     */

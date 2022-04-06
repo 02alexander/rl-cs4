@@ -2,6 +2,7 @@
 pub mod stack4;
 pub mod connect4;
 
+use num_derive::{FromPrimitive};
 use serde::{Serialize, Deserialize};
 use std::ops;
 use std::fmt;
@@ -34,7 +35,7 @@ pub enum TileStates {
     Full(Player),
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Debug, FromPrimitive, Serialize, Deserialize)]
 pub enum Player {
     Red=1,
     Yellow=2,
