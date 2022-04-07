@@ -188,14 +188,14 @@ fn cnn_search(c: &mut Criterion) {
 
 fn search_benchmark(c: &mut Criterion) {
     let mut board = Connect4::new();
-    let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
+    /*let actions = vec![4, 5, 3, 1, 3, 1, 1, 1, 4, 5, 5, 1, 4, 4, 2, 5];
     for action in actions {
         board.play_action(action);
-    }
+    }*/
     let p = board.cur_player;
     let evaluator = SimpleEval::new();
-    c.bench_function("SimpleEval, depth=13", |b| b.iter(||{
-        black_box(abnegamax_best_action(&mut board, 13, &evaluator, p))
+    c.bench_function("SimpleEval, depth=11", |b| b.iter(||{
+        black_box(abnegamax_best_action(&mut board, 11, &evaluator, p))
     }));
 }
 
@@ -203,8 +203,8 @@ fn stack4search(c: &mut Criterion) {
     let mut board = Stack4::new();
     let evaluator = SimpleEval::new();
     let p = board.cur_player;
-    c.bench_function("Stack4::SimpleEval, depth=6", |b| b.iter(|| {
-        black_box(abnegamax_best_action(&mut board, 6, &evaluator, p))
+    c.bench_function("Stack4::SimpleEval, depth=7", |b| b.iter(|| {
+        black_box(abnegamax_best_action(&mut board, 7, &evaluator, p))
     }));
 }
 

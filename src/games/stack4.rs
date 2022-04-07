@@ -228,16 +228,21 @@ impl<'a> Iterator for LegalActions {
     type Item = Action;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.side < 4 {
-            let dir = DIRS[self.side];
-            let start = STARTS[self.side];
-            let inward_direction = [-dir[1], dir[0]];
-            while self.c < BOARD_SIZE as i32 {
-                self.c += 1;
+        let move_order = [3, 4, 2, 5, 1, 6, 0, 7];
+        while self.c < BOARD_SIZE as i32 {
+            let i = move_order[self.c as usize];
+
+            while self.side < 4 {
+                let dir = DIRS[self.side];
+                let start = STARTS[self.side];
+                let inward_direction = [-dir[1], dir[0]];
+                self.side += 1;
                 let cur_start = [
-                    start[0] as i32+dir[0] as i32*self.c,
-                    start[1] as i32+dir[1] as i32*self.c
+                    start[0] as i32+dir[0] as i32*i,
+                    start[1] as i32+dir[1] as i32*i
                 ];
+
+                // moves into the board until it finds a empty square.
                 for k in 0..BOARD_SIZE {
                     let cur_cord = [ 
                         (cur_start[0]+k as i32*inward_direction[0]), 
@@ -260,9 +265,10 @@ impl<'a> Iterator for LegalActions {
                     }
                 }
             } 
-            if self.c == BOARD_SIZE as i32 {
-                self.c = 0;
-                self.side += 1;
+
+            if self.side == 4 {
+                self.c += 1;
+                self.side = 0;
             }
         }
         None

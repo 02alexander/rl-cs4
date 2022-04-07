@@ -175,9 +175,10 @@ impl Game for Connect4 {
 
     fn legal_actions(&self) -> Box<dyn Iterator<Item=Action>> {
 
-        // it's 2.5 time faster to use Vec::with_capacity than Vec::new
+        let moves = [3, 4, 2, 5, 1, 6, 0];
+        //let moves = [0, 1, 2, 3, 4, 5, 6];
         let mut v = Vec::with_capacity(BOARD_WIDTH); 
-        for i in 0..BOARD_WIDTH {
+        for i in moves {
             if self.is_valid_move(i) {
                 v.push(i);
             }

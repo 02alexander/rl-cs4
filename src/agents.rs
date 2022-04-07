@@ -106,9 +106,10 @@ impl<'a, T, G> Agent<G> for MinimaxPolicyAgent<'a, T>
         let mut winning_moves = Vec::new();
         let mut avs = Vec::new();
         let actions:Vec<_> = board.legal_actions().collect();
+        let mut tt = TranspositionTable::new();
         for action in &actions {
             board.play_action(*action);
-            let v = -abnegamax(&board, self.depth-1, self.batch_depth, self.evaluator, !player, None);
+            let v = -abnegamax(&board, self.depth-1, self.batch_depth, self.evaluator, !player, Some(&mut tt));
             board.reverse_last_action(*action);
             if v == 1./0. {
                 winning_moves.push(action);
