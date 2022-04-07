@@ -5,14 +5,14 @@ use std::collections::HashMap;
 
 static mut COUNT: u32 = 0;
 
-/*
+
 
 // these two numbers must be coprime.
-const TABLE_SIZE: usize = 7919;
-const MULTIPLIER: usize = 7909;
+const TABLE_SIZE: usize = 104723;
+const MULTIPLIER: usize = 48619;
 
 pub struct TranspositionTable<T> {
-    table: [Option<(u128, T)>;TABLE_SIZE],
+    pub table: [Option<(u128, T)>;TABLE_SIZE],
 }
 
 pub fn hash(board: u128) -> usize {
@@ -43,7 +43,7 @@ impl<T: Copy> TranspositionTable<T> {
         self.table[hash(board)] = Some((board, value));
     }
 }
-*/
+
 
 pub fn abnegamax_best_action<T, E>(board: &T, depth: u32, evaluator: &E, player: Player) -> T::Action 
     where 
@@ -51,11 +51,12 @@ pub fn abnegamax_best_action<T, E>(board: &T, depth: u32, evaluator: &E, player:
         E: Evaluator<T>,
         T::Action: Copy
 {
+    let mut tt = TranspositionTable::new();
     let mut _board = board.clone();
     let mut avs = Vec::new();
     for action in _board.legal_actions() {
         _board.play_action(action);
-        avs.push((action, -abnegamax(&_board, depth-1, 0, evaluator, !player)));
+        avs.push((action, -abnegamax(&_board, depth-1, 0, evaluator, !player, Some(&mut tt))));
         _board.reverse_last_action(action);
     }
     let mx = avs.iter().map(|(_,v)|*v).fold(-1.0/0.0, f64::max);
@@ -90,11 +91,12 @@ pub fn batch_abnegamax_best_action<T, E>(board: &T, depth: u32, batch_depth: u32
         E: Evaluator<T>,
         T::Action: Copy
 {
+    let mut tt = TranspositionTable::new();
     let mut _board = board.clone();
     let mut avs = Vec::new();
     for action in _board.legal_actions() {
         _board.play_action(action);
-        avs.push((action, -abnegamax(&_board, depth-1, batch_depth, evaluator, !player)));
+        avs.push((action, -abnegamax(&_board, depth-1, batch_depth, evaluator, !player, Some(&mut tt))));
         _board.reverse_last_action(action);
     }
     //println!("{:?}", avs);
@@ -123,17 +125,24 @@ pub fn negamax<T, E>(board: &mut T, depth: u32, evaluator: &E, player: Player) -
     val
 }
 
-pub fn abnegamax<T, E>(board: &T, depth: u32, batch_depth: u32, evaluator: &E, player: Player) -> f64 
+pub fn abnegamax<T, E>(board: &T, depth: u32, batch_depth: u32, 
+                       evaluator: &E, player: Player, tt: Option<&mut TranspositionTable<f64>>) -> f64 
     where 
         T: Game, 
         E: Evaluator<T>,
         T::Action: Copy
 {
     let mut _board = board.clone();
-    _abnegamax(&mut _board, -1./0., 1./0., depth, batch_depth, evaluator, player)
+    if let Some(t) = tt {
+        _abnegamax(&mut _board, -1./0., 1./0., depth, batch_depth, evaluator, player, t)
+    } else {
+        let mut t = TranspositionTable::new();
+        _abnegamax(&mut _board, -1./0., 1./0., depth, batch_depth, evaluator, player, &mut t)
+    }
 }
 
-fn _abnegamax<T,E>(board: &mut T, mut alpha: f64, beta: f64, depth: u32, batch_depth: u32, evaluator: &E, player: Player) -> f64
+fn _abnegamax<T,E>(board: &mut T, mut alpha: f64, mut beta: f64, depth: u32, batch_depth: u32, 
+                   evaluator: &E, player: Player, tt: &mut TranspositionTable<f64>) -> f64
     where 
         T: Game, 
         E: Evaluator<T>,
@@ -142,14 +151,23 @@ fn _abnegamax<T,E>(board: &mut T, mut alpha: f64, beta: f64, depth: u32, batch_d
     if board.game_state() != GameState::InProgress || depth == 0 {
         return evaluator.value(board, player);
     }
+    let mut max = 1./0.;
+    if let Some(val) = tt.get(board.uid()) {
+        max = val;
+    }
+    if beta > max {
+        beta = max;
+        if alpha >= beta {
+            return beta;
+        }
+    }
     let mut val: f64 = -1./0.;
     for action in board.legal_actions() {
         board.play_action(action);
-        //let v = -_abnegamax(board, -beta, -alpha, depth-1, batch_depth, evaluator, !player);
         let v = if depth <= batch_depth {
             -batch_negamax(board, depth-1, evaluator, !player)
         } else {
-            -_abnegamax(board, -beta, -alpha, depth-1, batch_depth, evaluator, !player)
+            -_abnegamax(board, -beta, -alpha, depth-1, batch_depth, evaluator, !player, tt)
         };
         val = val.max(v);
         board.reverse_last_action(action);
@@ -158,7 +176,8 @@ fn _abnegamax<T,E>(board: &mut T, mut alpha: f64, beta: f64, depth: u32, batch_d
             break;
         }
     }
-    val
+    tt.set(board.uid(), alpha);
+    alpha
 }
 
 pub fn batch_negamax<T, E>(board: &T, depth: u32, evaluator: &E, player: Player) -> f64 
@@ -227,4 +246,21 @@ pub fn leafs<T>(board: &mut T, depth: u32) -> Vec<T>
         board.reverse_last_action(action);
     }
     ret
+}
+
+#[cfg(test)]
+mod test {
+    use crate::games::connect4::Connect4;
+    use crate::games::Game;
+    use super::*;
+    #[test]
+    fn transposition_table() {
+
+        let mut tt: TranspositionTable<f64> = TranspositionTable::new();
+        let mut board = Connect4::new();
+        board.play_action(4);
+        board.play_action(5);
+        tt.set(board.uid(), 1.0);
+        assert_eq!(tt.get(board.uid()), Some(1.0));
+    }
 }

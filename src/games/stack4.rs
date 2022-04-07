@@ -21,6 +21,7 @@ pub struct Stack4 {
     pub board: u128,
     pub cur_player: Player,
     pub game_state: GameState,
+    pub nb_moves: u32,
 }
 
 struct LegalActions {
@@ -95,8 +96,9 @@ impl Stack4 {
         }
         Stack4 {
             board: new_board.board,
-            cur_player: new_board.cur_player,
-            game_state: new_board.game_state
+            cur_player: self.cur_player,
+            game_state: self.game_state,
+            nb_moves: self.nb_moves,
         }
     }
 
@@ -132,6 +134,7 @@ impl Stack4 {
             board: new_board,
             cur_player: self.cur_player,
             game_state: self.game_state,
+            nb_moves: self.nb_moves,
         }
     }
 }
@@ -143,7 +146,8 @@ impl Game for Stack4 {
         Self {
             board: 0,
             cur_player: Player::Red,
-            game_state: GameState::InProgress
+            game_state: GameState::InProgress,
+            nb_moves: 0,
         }
     }
 
@@ -151,6 +155,7 @@ impl Game for Stack4 {
     fn play_action(&mut self, action: Self::Action) {
         assert_eq!(self.game_state, GameState::InProgress);
         self.set(action.0, action.1, self.cur_player as u8);
+        self.nb_moves += 1;
 
         if self.player_won([action.0, action.1]) {
             self.game_state = GameState::Won(self.cur_player);
@@ -166,6 +171,7 @@ impl Game for Stack4 {
         self.set(last_action.0, last_action.1, 0);
         self.game_state = GameState::InProgress;
         self.cur_player = !self.cur_player;
+        self.nb_moves -= 1;
     }
 
     fn game_state(&self) -> GameState {
@@ -211,6 +217,10 @@ impl Game for Stack4 {
 
     fn uid(&self) -> u128 {
         self.board
+    }
+
+    fn length(&self) -> u32 {
+        self.nb_moves
     }
 }
 

@@ -116,7 +116,7 @@ impl<G, E> RL<G, E> for QLearning<E>
                     }
                 }
             } else {
-                let v = abnegamax(*next_state, self.depth, self.depth, &self.evaluator, player);
+                let v = abnegamax(*next_state, self.depth, self.depth, &self.evaluator, player, None);
 
                 // The reward is baked into the target action value.
                 if v == 1./0. {

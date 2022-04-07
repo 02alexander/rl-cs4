@@ -201,7 +201,7 @@ fn run_command<G, E>(command: Commands)
         }
         Commands::Play {ai_file} => {
             let ai: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
-            let agenta = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 4);
+            let agenta = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 6);
             user_vs_agent(&agenta);
         }
         Commands::Compare {ai_file1, ai_file2, nb_games, depth} => {

@@ -8,7 +8,7 @@ use std::ops;
 use std::fmt;
 
 // A two player with three possible outcomes, win for either player or a draw.
-pub trait Game: Clone+fmt::Debug {
+pub trait Game: Clone+Copy+fmt::Debug {
     type Action: Copy;
     
     fn new() -> Self;
@@ -26,6 +26,10 @@ pub trait Game: Clone+fmt::Debug {
     fn symmetries(&self) -> Vec<Self>;
 
     fn uid(&self) -> u128;
+
+    // How many moves has been played.
+    fn length(&self) -> u32;
+
 }
 
 // in the boards these are represented by two bit numbers where Empty=0, Full(Red)=1, Full(Yellow)=2 

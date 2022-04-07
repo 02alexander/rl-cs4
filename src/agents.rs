@@ -82,7 +82,7 @@ impl<'a, T> MinimaxPolicyAgent<'a, T> {
             evaluator,
             policy,
             depth,
-            batch_depth:depth
+            batch_depth:0
         }
     }
 }
@@ -108,7 +108,7 @@ impl<'a, T, G> Agent<G> for MinimaxPolicyAgent<'a, T>
         let actions:Vec<_> = board.legal_actions().collect();
         for action in &actions {
             board.play_action(*action);
-            let v = -batch_negamax(&board, self.depth-1, self.evaluator, !player);
+            let v = -abnegamax(&board, self.depth-1, self.batch_depth, self.evaluator, !player, None);
             board.reverse_last_action(*action);
             if v == 1./0. {
                 winning_moves.push(action);

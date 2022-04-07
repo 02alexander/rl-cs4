@@ -18,13 +18,14 @@ pub const REWARD_DRAW: f64 = 0.0;
 pub type Action = usize; // a value in the range of [0,BOARD_WIDTH)
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Connect4 {
     // tile on board takes up 2 bits, 0 for empty, 1 for red, 2 for yellow. 
     // starts in bottom left corner and goes row by row.
     pub board: u128,
     pub cur_player: Player,
     pub game_state: GameState,
+    pub nb_moves: u32,
 }
 
 
@@ -116,8 +117,7 @@ impl Connect4 {
         
         Connect4 {
             board: new_board,
-            cur_player: self.cur_player,
-            game_state: self.game_state,
+            ..*self
         }
     }
 
@@ -140,6 +140,7 @@ impl Game for Connect4 {
             board: 0,
             cur_player: Player::Red,
             game_state: GameState::InProgress,
+            nb_moves: 0,
         }
     }
 
@@ -151,6 +152,8 @@ impl Game for Connect4 {
         }
         let ap = self.action_pos(action);
         self.set(ap[0],ap[1], self.cur_player as u8);
+        self.nb_moves += 1;
+
         if self.player_won(ap) {
             self.game_state = GameState::Won(self.cur_player);
         } else if self.is_full() {
@@ -167,6 +170,7 @@ impl Game for Connect4 {
         self.set(ap[0],ap[1],0);
         self.game_state = GameState::InProgress;
         self.cur_player = !self.cur_player;
+        self.nb_moves -= 1;
     }
 
     fn legal_actions(&self) -> Box<dyn Iterator<Item=Action>> {
@@ -212,6 +216,9 @@ impl Game for Connect4 {
     }
     fn symmetries(&self) -> Vec<Self> {
         vec![self.clone(), self.symmetry()]
+    }
+    fn length(&self) -> u32 {
+        self.nb_moves
     }
 }
 
