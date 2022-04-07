@@ -1,7 +1,6 @@
 
 use serde::{Serialize, Deserialize};
 use crate::games::{Player, GameState};
-use crate::agents::Agent;
 use crate::games::Game;
 use crate::matchmaker::PlayableGame;
 use std::fmt;
@@ -307,7 +306,7 @@ impl PlayableGame for Stack4 {
     // returns (action, is_reverse)
     fn get_action_from_user(&self) -> (Action, bool) {
         let stdin = std::io::stdin();
-        let mut legal_actions: Vec<_> = self.legal_actions().collect();
+        let legal_actions: Vec<_> = self.legal_actions().collect();
 
         fn parse_cord(s: &str) -> Option<(usize,usize)> {
             let mut numbers = s.split(',');

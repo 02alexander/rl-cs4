@@ -3,16 +3,14 @@ use crate::games::{Player, GameState, Game};
 use crate::evaluators::{Evaluator};
 use std::collections::HashMap;
 
-static mut COUNT: u32 = 0;
-
-
+pub static mut LEAF_COUNT: u32 = 0;
 
 // these two numbers must be coprime.
 const TABLE_SIZE: usize = 104723;
 const MULTIPLIER: usize = 48619;
 
 pub struct TranspositionTable<T> {
-    pub table: [Option<(u128, T)>;TABLE_SIZE],
+    pub table: Vec<Option<(u128, T)>>,
 }
 
 pub fn hash(board: u128) -> usize {
@@ -23,7 +21,7 @@ pub fn hash(board: u128) -> usize {
 impl<T: Copy> TranspositionTable<T> {
     pub fn new() -> TranspositionTable<T> {
         TranspositionTable {
-            table: [None; TABLE_SIZE],
+            table: vec![None; TABLE_SIZE],
         }
     }
 
@@ -149,6 +147,7 @@ fn _abnegamax<T,E>(board: &mut T, mut alpha: f64, mut beta: f64, depth: u32, bat
         T::Action: Copy
 {
     if board.game_state() != GameState::InProgress || depth == 0 {
+        unsafe {LEAF_COUNT += 1};
         return evaluator.value(board, player);
     }
     let mut max = 1./0.;

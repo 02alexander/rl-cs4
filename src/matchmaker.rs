@@ -196,6 +196,10 @@ pub fn user_vs_agent<G, A>(opponent: &A)
             }
         }
         let action = opponent.get_action(&board, !p);
+        unsafe {
+            println!("LEAF_COUNT={}", crate::search::LEAF_COUNT);
+            crate::search::LEAF_COUNT = 0;
+        }
         actions.push(action);
         board.play_action(action);
         match board.game_state() {

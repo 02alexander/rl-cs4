@@ -1,6 +1,5 @@
 
-use crate::evaluators::{Evaluator, Connect4Evaluators};
-use crate::games::connect4::{Connect4};
+use crate::evaluators::{Evaluator};
 use crate::games::{GameState, Player, Game};
 use crate::policies::Policy;
 use crate::search::{abnegamax};
