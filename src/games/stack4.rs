@@ -5,11 +5,9 @@ use crate::games::Game;
 use crate::matchmaker::PlayableGame;
 use std::fmt;
 use std::io::BufRead;
+use smallvec::SmallVec;
 
 const BOARD_SIZE: usize = 8;
-const DIRS: [[i32;2];4] = [[1,0], [0,1], [-1,0], [0, -1]];
-const STARTS: [[usize;2];4] = [[0,0], [BOARD_SIZE-1, 0], [BOARD_SIZE-1, BOARD_SIZE-1], [0, BOARD_SIZE-1]];
-
 
 type Action = (usize, usize);
 
@@ -21,13 +19,6 @@ pub struct Stack4 {
     pub cur_player: Player,
     pub game_state: GameState,
     pub nb_moves: u32,
-}
-
-struct LegalActions {
-    board: Stack4,
-    side: usize,
-    c: i32,
-    prev_actions: u64 // Bitboard of actions already iterated over.
 }
 
 impl Stack4 {
@@ -65,8 +56,26 @@ impl Stack4 {
         false
     }
 
+    pub fn is_winning_action(&self, action: Action, player: Player) -> bool {
+        let mut resulting_board = self.clone();
+        resulting_board.play_action(action);
+        resulting_board.game_state == GameState::Won(player)
+    } 
+
     pub fn is_full(&self) -> bool {
-        self.legal_actions().count() == 0
+        let mut yellow_mask: u128 = 2;
+        for _ in 0..64 {
+            yellow_mask <<= 2;
+            yellow_mask += 2;
+        }
+        let mut red_mask: u128 = 1;
+        for _ in 0..64 {
+            red_mask <<= 2;
+            red_mask += 1;
+        }
+        yellow_mask == (self.board&yellow_mask | (self.board&red_mask) >> 1) 
+        // !( ((self.board >> 1)|self.board) |  )==0
+        //self.legal_actions().count() == 0
     }
 
     pub fn in_board(x: i32, y: i32) -> bool {
@@ -182,7 +191,41 @@ impl Game for Stack4 {
     }
 
     fn legal_actions(&self) -> Box<dyn Iterator<Item=Action>> {
-        Box::new(LegalActions { board: *self, side: 0, c: 0, prev_actions: 0})
+        let dirs = [[1,0], [0,1], [-1,0], [0, -1]];
+        let starts = [[0,0], [BOARD_SIZE-1, 0], [BOARD_SIZE-1, BOARD_SIZE-1], [0, BOARD_SIZE-1]];
+        let mut prev_actions: u64 = 0;
+        let mut winning_moves = SmallVec::<[Action; BOARD_SIZE*4]>::new();
+
+        let mut blocking_moves = SmallVec::<[Action; BOARD_SIZE*4]>::new();
+
+        let move_order = [3, 4, 2, 5, 1, 6, 0, 7];
+
+        let mut actions = SmallVec::<[Action; BOARD_SIZE*4]>::new();
+        for c in move_order {
+            for (dir, start) in dirs.iter().zip(starts) {
+                let inward_direction = [-dir[1], dir[0]];
+                let cur_start = [start[0] as i32+dir[0] as i32*c, start[1] as i32+dir[1] as i32*c];
+                for k in 0..BOARD_SIZE {
+                    let cur_cord = [ 
+                        (cur_start[0]+k as i32*inward_direction[0]) as usize, 
+                        (cur_start[1]+k as i32*inward_direction[1]) as usize
+                    ];
+                    // 0 represents TileStates::Empty
+                    if self.get(cur_cord[0], cur_cord[1]) == 0 && prev_actions>>(cur_cord[0]+cur_cord[1]*BOARD_SIZE)&1==0 {
+                        if self.is_winning_action((cur_cord[0], cur_cord[1]), self.cur_player) {
+                            winning_moves.push((cur_cord[0], cur_cord[1]))
+                        } else if self.is_winning_action((cur_cord[0], cur_cord[1]), !self.cur_player) {
+                            blocking_moves.push((cur_cord[0], cur_cord[1]))
+                        } else {
+                            actions.push((cur_cord[0], cur_cord[1]));
+                        }
+                        prev_actions += 1<<(cur_cord[0]+cur_cord[1]*BOARD_SIZE);
+                        break
+                    }
+                }
+            }
+        }
+        Box::new(winning_moves.into_iter().chain(blocking_moves.into_iter()).chain(actions.into_iter()))
     }
 
     fn vectorize(&self, player: Player) -> Vec<f64> {
@@ -220,57 +263,6 @@ impl Game for Stack4 {
 
     fn length(&self) -> u32 {
         self.nb_moves
-    }
-}
-
-impl<'a> Iterator for LegalActions {
-    type Item = Action;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let move_order = [3, 4, 2, 5, 1, 6, 0, 7];
-        while self.c < BOARD_SIZE as i32 {
-            let i = move_order[self.c as usize];
-
-            while self.side < 4 {
-                let dir = DIRS[self.side];
-                let start = STARTS[self.side];
-                let inward_direction = [-dir[1], dir[0]];
-                self.side += 1;
-                let cur_start = [
-                    start[0] as i32+dir[0] as i32*i,
-                    start[1] as i32+dir[1] as i32*i
-                ];
-
-                // moves into the board until it finds a empty square.
-                for k in 0..BOARD_SIZE {
-                    let cur_cord = [ 
-                        (cur_start[0]+k as i32*inward_direction[0]), 
-                        (cur_start[1]+k as i32*inward_direction[1])
-                    ];
-                    if cur_cord[0] < 0 || cur_cord[1] < 0 || cur_cord[0] >= BOARD_SIZE as i32 || cur_cord[1] >= BOARD_SIZE as i32 {
-                        continue;
-                    }
-                    let cur_cord = [cur_cord[0] as usize, cur_cord[1] as usize];
-                    // 0 represents TileStates::Empty
-                    if self.board.get(cur_cord[0], cur_cord[1]) == 0 {
-                        let mask = 1 << (cur_cord[0] + BOARD_SIZE*cur_cord[1]);
-                        let res = self.prev_actions & mask; 
-                        if res == 0 {
-                            self.prev_actions += mask;
-                            return Some((cur_cord[0], cur_cord[1]));
-                        } else {
-                            break
-                        }
-                    }
-                }
-            } 
-
-            if self.side == 4 {
-                self.c += 1;
-                self.side = 0;
-            }
-        }
-        None
     }
 }
 
