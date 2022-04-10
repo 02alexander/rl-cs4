@@ -13,6 +13,14 @@ clap = { version = "3.1.2", features=["derive"]}
 typetag="0.1.8"
 tch = "0.6.1"
 anyhow = "1.0.55"
+actix-web = "4.0"
+actix-files = "0.6"
+lazy_static="1.4"
+num-traits = "0.2"
+num-derive = "0.3"
+env_logger = "0.9"
+futures = "0.3"
+smallvec = "1.8"
 
 [dev-dependencies]
 criterion = "0.3"
@@ -26,8 +34,12 @@ name = "gamesolver"
 path = "src/lib.rs"
 
 [[bin]]
-name="connect4"
+name="gametrainer"
 path = "src/bin/main.rs"
 
+[[bin]]
+name="server"
+path="src/bin/server.rs"
+
 [profile.release]
-#debug = true
+debug = true

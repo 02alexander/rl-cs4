@@ -4,6 +4,7 @@ use serde::{Serialize, Deserialize};
 use crate::games::{Player, GameState};
 use crate::games::Game;
 use crate::matchmaker::PlayableGame;
+use smallvec::SmallVec;
 use std::io;
 use std::io::BufRead;
 
@@ -27,8 +28,6 @@ pub struct Connect4 {
     pub game_state: GameState,
     pub nb_moves: u32,
 }
-
-
 
 impl Connect4 {
 
@@ -64,6 +63,13 @@ impl Connect4 {
         }
         false
     }
+
+    pub fn is_winning_action(&self, action: Action, player: Player) -> bool {
+        let mut resulting_board = self.clone();
+        let piece_pos = resulting_board.action_pos(action);
+        resulting_board.play_action(action);
+        resulting_board.player_won(piece_pos)
+    } 
 
     pub fn in_board(&self, x:i32,y:i32) -> bool {
         x >= 0 && y >= 0 && x < BOARD_WIDTH as i32 && y < BOARD_HEIGHT as i32 
@@ -174,16 +180,25 @@ impl Game for Connect4 {
     }
 
     fn legal_actions(&self) -> Box<dyn Iterator<Item=Action>> {
+        let mut winning_moves = SmallVec::<[Action; BOARD_WIDTH]>::new();
 
+        // moves that block the opponent from winning next turn.
+        let mut blocking_moves = SmallVec::<[Action; BOARD_WIDTH]>::new();
         let moves = [3, 4, 2, 5, 1, 6, 0];
         //let moves = [0, 1, 2, 3, 4, 5, 6];
-        let mut v = Vec::with_capacity(BOARD_WIDTH); 
+        let mut v = SmallVec::<[Action; BOARD_WIDTH]>::new(); 
         for i in moves {
             if self.is_valid_move(i) {
-                v.push(i);
+                if self.is_winning_action(i, self.cur_player) {
+                    winning_moves.push(i);
+                } else if self.is_winning_action(i, !self.cur_player) {
+                    blocking_moves.push(i);
+                } else {
+                    v.push(i);
+                }
             }
         }
-        Box::new(v.into_iter())
+        Box::new(winning_moves.into_iter().chain(blocking_moves.into_iter()).chain(v.into_iter()))
     }
 
     fn game_state(&self) -> GameState {
