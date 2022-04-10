@@ -7,6 +7,8 @@ use crate::matchmaker::PlayableGame;
 use smallvec::SmallVec;
 use std::io;
 use std::io::BufRead;
+use num_traits::{FromPrimitive};
+
 
 pub const BOARD_WIDTH: usize = 7;
 pub const BOARD_HEIGHT: usize = 6;
@@ -34,41 +36,45 @@ impl Connect4 {
     pub fn player_won(&self, piece_pos: [usize; 2]) -> bool {
         let directions: [[i32;2];4] = [[1,0],[0,1],[-1,1], [1,1]];
         let player = self.get(piece_pos[0],piece_pos[1]);
-        for direction in directions {
-            let mut sm = 1;
-            for i in 1..4 {
-                let curx = direction[0]*i+piece_pos[0] as i32;
-                let cury = direction[1]*i+piece_pos[1] as i32;
-                if !self.in_board(curx, cury) {
-                    break;
-                } else if player as u8 != self.get(curx as usize,cury as usize) {
-                    break;
-                } 
-                sm += 1;
-            }
-            for i in 1..4 {
-                let i = -i;
-                let curx = direction[0]*i+piece_pos[0] as i32;
-                let cury = direction[1]*i+piece_pos[1] as i32;
-                if !self.in_board(curx, cury) {
-                    break;
-                } else if player as u8 != self.get(curx as usize,cury as usize) {
-                    break;
+
+        let player_mask = match FromPrimitive::from_u8(player).unwrap() {
+            Player::Red => {
+                let mut res: u128 = 1;
+                for _ in 0..64 {
+                    res <<= 2;
+                    res += 1;
                 }
-                sm += 1;
-            }
-            if sm >= 4 {
-                return true;
-            }
+                res
+            },
+            Player::Yellow => {
+                let mut res: u128 = 2;
+                for _ in 0..64 {
+                    res <<= 2;
+                    res += 2;
+                }
+                res
+            },
+        };
+        let mut check_horizontal = self.board;
+        let mut check_vertical = self.board;
+        let mut check_diagonal_1 = self.board;
+        let mut check_diagonal_2 = self.board;
+        for i in 0..4 {
+            check_horizontal &= self.board >> 2*i;
+            check_vertical &= self.board >> 2*i*BOARD_WIDTH;
+            check_diagonal_1 &= self.board >> 2*i*BOARD_WIDTH+2*i;
+            check_diagonal_2 &= self.board >> (2*i as i32*BOARD_WIDTH as i32-2*i as i32).abs();
         }
-        false
+        ((check_horizontal&player_mask) != 0) ||
+        ((check_vertical&player_mask) != 0) ||
+        ((check_diagonal_1&player_mask) != 0) ||
+        ((check_diagonal_2&player_mask) != 0)
     }
 
     pub fn is_winning_action(&self, action: Action, player: Player) -> bool {
         let mut resulting_board = self.clone();
-        let piece_pos = resulting_board.action_pos(action);
         resulting_board.play_action(action);
-        resulting_board.player_won(piece_pos)
+        resulting_board.game_state == GameState::Won(player)
     } 
 
     pub fn in_board(&self, x:i32,y:i32) -> bool {
