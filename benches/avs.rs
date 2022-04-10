@@ -110,7 +110,7 @@ fn cnn_eval_forward_100(c: &mut Criterion) {
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
     let mut vectorized_boards = Vec::with_capacity(6*7*n);
-    for i in 0..n {
+    for _ in 0..n {
         vectorized_boards.append(&mut board.vectorize(p));
     }
     let tensor = unsafe {
@@ -139,7 +139,7 @@ fn cnn_eval_forward_100_no_grad(c: &mut Criterion) {
     let p = board.cur_player;
     let evaluator = CNNEval::new(String::from("models/bench_model.pt"));
     let mut vectorized_boards = Vec::with_capacity(6*7*n);
-    for i in 0..n {
+    for _ in 0..n {
         vectorized_boards.append(&mut board.vectorize(p));
     }
     let tensor = unsafe {
@@ -194,8 +194,8 @@ fn search_benchmark(c: &mut Criterion) {
     }*/
     let p = board.cur_player;
     let evaluator = SimpleEval::new();
-    c.bench_function("SimpleEval, depth=11", |b| b.iter(||{
-        black_box(abnegamax_best_action(&mut board, 11, &evaluator, p))
+    c.bench_function("SimpleEval, depth=13", |b| b.iter(||{
+        black_box(abnegamax_best_action(&mut board, 13, &evaluator, p))
     }));
 }
 
@@ -203,8 +203,8 @@ fn stack4search(c: &mut Criterion) {
     let mut board = Stack4::new();
     let evaluator = SimpleEval::new();
     let p = board.cur_player;
-    c.bench_function("Stack4::SimpleEval, depth=7", |b| b.iter(|| {
-        black_box(abnegamax_best_action(&mut board, 7, &evaluator, p))
+    c.bench_function("Stack4::SimpleEval, depth=6", |b| b.iter(|| {
+        black_box(abnegamax_best_action(&mut board, 6, &evaluator, p))
     }));
 }
 
@@ -214,6 +214,25 @@ fn stack4search_cons(c: &mut Criterion) {
     let p = board.cur_player;
     c.bench_function("Stack4::ConsequtiveEval, depth=3", |b| b.iter(|| {
         black_box(abnegamax_best_action(&mut board, 3, &evaluator, p))
+    }));
+}
+
+fn stack4_player_won(c: &mut Criterion) {
+    let mut board = Stack4::new();
+    board.play_action((3,3));
+    c.bench_function("Stack4::player_won", |b| b.iter(||{
+        black_box(board.player_won([3,3]))
+    }));
+}
+
+fn connct4_player_won(c: &mut Criterion) {
+    let mut board = Connect4::new();
+    board.play_action(3);
+    board.play_action(3);
+    board.play_action(3);
+    board.play_action(3);
+    c.bench_function("Stack4::player_won", |b| b.iter(||{
+        black_box(board.player_won([3,3]))
     }));
 }
 
@@ -231,7 +250,9 @@ criterion_group!(
     cnn_search,
     cnn_search_batch,
     stack4search,
-    stack4search_cons
+    stack4search_cons,
+    stack4_player_won,
+    connct4_player_won,
 );
 //criterion_group!(benches, cnn_eval_benchmark);
 criterion_main!(benches);
