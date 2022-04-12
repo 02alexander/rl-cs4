@@ -166,6 +166,7 @@ pub fn user_vs_agent<G, A>(opponent: &A)
     where
         G: PlayableGame,
         A: Agent<G>,
+        G::Action: std::fmt::Debug,
 {
     let mut board = G::new();
     let p = board.cur_player();
@@ -174,7 +175,6 @@ pub fn user_vs_agent<G, A>(opponent: &A)
 
     loop {
         println!("{:?}", board);
-        println!("{:?}", board.game_state());
         let (action, reverse) = board.get_action_from_user();
         if reverse {
             board.reverse_last_action(actions[actions.len()-1]);
@@ -185,31 +185,29 @@ pub fn user_vs_agent<G, A>(opponent: &A)
         } else {
             actions.push(action);
             board.play_action(action);
-            match board.game_state() {
-                GameState::Draw => {
-                    println!("Draw");
-                }
-                GameState::InProgress => {},
-                GameState::Won(player) => {
-                    println!("{:?} won", player);   
-                }
-            }
+            println!("{:?}", board);
+            if board.game_state() != GameState::InProgress {
+                break
+            }                
         }
         let action = opponent.get_action(&board, !p);
         unsafe {
-            println!("LEAF_COUNT={}", crate::search::LEAF_COUNT);
             crate::search::LEAF_COUNT = 0;
         }
         actions.push(action);
         board.play_action(action);
-        match board.game_state() {
-            GameState::Draw => {
-                println!("Draw");
-            }
-            GameState::InProgress => {},
-            GameState::Won(player) => {
-                println!("{:?} won", player);   
-            }
+        if board.game_state() != GameState::InProgress {
+            break
+        }
+    }
+    println!("{:?}", board);
+    match board.game_state() {
+        GameState::Draw => {
+            println!("Draw");
+        }
+        GameState::InProgress => {},
+        GameState::Won(player) => {
+            println!("{:?} won", player);   
         }
     }
 }
