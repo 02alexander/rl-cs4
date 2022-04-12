@@ -129,3 +129,89 @@ impl<'a, T, G> Agent<G> for MinimaxPolicyAgent<'a, T>
         }
     }
 }
+
+pub struct CompositeAgent<'a, T> {
+    evaluator: &'a T,
+    depth: u32,
+    pub simple_depth: u32, // how deep it should search with SimpleEval.
+    pub batch_depth: u32,
+}
+
+impl<'a, T> CompositeAgent<'a, T> {
+    pub fn new(evaluator: &'a T, depth: u32, batch_depth: u32, simple_depth: u32) -> Self {
+        CompositeAgent::<T> {
+            evaluator,
+            depth,
+            simple_depth,
+            batch_depth
+        }
+    }
+}
+
+
+impl<'a, T, G> Agent<G> for CompositeAgent<'a, T> 
+    where
+        G: Game,
+        G::Action: Copy,
+        T: Evaluator<G>
+{
+    // Searches at depth self.simple_depth using SimpleEval to determine losing and winning moves.
+    // If there is a winning move the move will be played. 
+    // If there are any moves that are unclear (first search found no win or loss for these moves) 
+    // their heuristic value will be computed using self.evaluator at depth self.depth and the action
+    // with maximum value will be played.
+    fn get_action(&self, board: &G, player: Player) -> G::Action {
+        
+        let mut board = board.clone();
+
+        let mut winning_actions = Vec::new();
+        let mut losing_actions = Vec::new();
+        let mut unclear_actions = Vec::new(); // actions where the search with SimpleEval returned 0.0 (heuristic value or draw).
+
+        let actions: Vec<G::Action> = board.legal_actions().collect();
+        let simple_values = vec![0.0; actions.len()];
+        let mut tt = TranspositionTable::new();
+        
+        let simple_eval = crate::evaluators::SimpleEval::new();
+
+        for action in actions {
+            board.play_action(action);
+            let v = -abnegamax(&board, self.simple_depth-1, 0, &simple_eval, !player, Some(&mut tt));
+            board.reverse_last_action(action);
+            if v > 0.0 {
+                winning_actions.push((action, v));
+            } else if v < 0.0 {
+                losing_actions.push((action, v));
+            } else {
+                unclear_actions.push(action);
+            }
+        }
+        if !winning_actions.is_empty() {
+            winning_actions.sort_by(|(_,v1), (_,v2)| v2.partial_cmp(v1).unwrap());
+            return winning_actions[0].0;
+        } else if !unclear_actions.is_empty() {
+            let mut tt = TranspositionTable::new();
+            let mut avs = Vec::new();
+            for action in unclear_actions {
+                board.play_action(action);
+                let v = abnegamax(&board, self.depth-1, self.batch_depth, self.evaluator, player, Some(&mut tt));
+                board.reverse_last_action(action);
+                avs.push((action, v));
+            }
+            avs.sort_by(|(_,v1), (_,v2)| v2.partial_cmp(v1).unwrap());
+            return avs[0].0;
+        } else if !losing_actions.is_empty() {
+            losing_actions.sort_by(|(_,v1), (_,v2)| v2.partial_cmp(v1).unwrap());
+            return losing_actions[0].0;
+        } else {
+            panic!("no action selected!")
+        }
+    }
+
+    // Returns chosen action and a boolean that is true if it was a exploring move
+    fn get_action_explored(&self, board: &G, player: Player) -> (G::Action, bool) {
+        (self.get_action(board, player), false)
+    }
+}
+
+
