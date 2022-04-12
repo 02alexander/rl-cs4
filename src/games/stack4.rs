@@ -161,7 +161,7 @@ impl Game for Stack4 {
 
     // Assumes that 'action' is a legal action.
     fn play_action(&mut self, action: Self::Action) {
-        assert_eq!(self.game_state, GameState::InProgress);
+        //assert_eq!(self.game_state, GameState::InProgress);
         self.set(action.0, action.1, self.cur_player as u8);
         self.nb_moves += 1;
 
@@ -211,15 +211,17 @@ impl Game for Stack4 {
                         (cur_start[1]+k as i32*inward_direction[1]) as usize
                     ];
                     // 0 represents TileStates::Empty
-                    if self.get(cur_cord[0], cur_cord[1]) == 0 && prev_actions>>(cur_cord[0]+cur_cord[1]*BOARD_SIZE)&1==0 {
-                        if self.is_winning_action((cur_cord[0], cur_cord[1]), self.cur_player) {
-                            winning_moves.push((cur_cord[0], cur_cord[1]))
-                        } else if self.is_winning_action((cur_cord[0], cur_cord[1]), !self.cur_player) {
-                            blocking_moves.push((cur_cord[0], cur_cord[1]))
-                        } else {
-                            actions.push((cur_cord[0], cur_cord[1]));
+                    if self.get(cur_cord[0], cur_cord[1]) == 0 {
+                        if prev_actions>>(cur_cord[0]+cur_cord[1]*BOARD_SIZE)&1==0 {
+                            if self.is_winning_action((cur_cord[0], cur_cord[1]), self.cur_player) {
+                                winning_moves.push((cur_cord[0], cur_cord[1]))
+                            } else if self.is_winning_action((cur_cord[0], cur_cord[1]), !self.cur_player) {
+                                blocking_moves.push((cur_cord[0], cur_cord[1]))
+                            } else {
+                                actions.push((cur_cord[0], cur_cord[1]));
+                            }
+                            prev_actions += 1<<(cur_cord[0]+cur_cord[1]*BOARD_SIZE);
                         }
-                        prev_actions += 1<<(cur_cord[0]+cur_cord[1]*BOARD_SIZE);
                         break
                     }
                 }
