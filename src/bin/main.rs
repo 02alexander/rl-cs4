@@ -3,20 +3,28 @@ extern crate clap;
 extern crate fastrand;
 extern crate serde_json;
 extern crate gamesolver;
+extern crate signal_hook;
 
-use gamesolver::games::connect4::{Connect4, Action};
+use gamesolver::games::connect4::{Connect4};
 use gamesolver::games::stack4::Stack4;
 use gamesolver::games::{GameState, Player};
 use gamesolver::evaluators::{Evaluator, Connect4Evaluators, Stack4Evaluators, simple::SimpleEval, cnn::CNNEval};
 use gamesolver::agents::{Agent, MinimaxPolicyAgent, MinimaxAgent};
-use std::io::{self, BufRead};
 use gamesolver::matchmaker::{MatchMaker, PlayableGame, user_vs_agent};
-use gamesolver::games::{connect4, Game};
+use gamesolver::games::{Game};
 use gamesolver::qlearning::{QLearning, RL};
 use gamesolver::policies::{EpsilonGreedy};
 use clap::{Parser, Subcommand, ArgEnum};
 use serde::{Serialize};
 use serde::de::DeserializeOwned;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use lazy_static::lazy_static;
+
+/*lazy_static! {
+    static ref QUIT: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+}*/
+static mut QUIT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about=None)]
@@ -117,14 +125,20 @@ impl Commands {
             None
         };
         let mut scores: Vec<f64> = Vec::new();
+        let term = Arc::new(AtomicBool::new(false));
+        let err = signal_hook::flag::register(signal_hook::consts::SIGQUIT, Arc::clone(&term));
+        
         for i in 0..iterations {
+            if term.load(Ordering::Relaxed) && err.is_ok() {
+                break;
+            }
             if progress {
                 println!("iteration: {}", i);
             }
             ai.self_play();
             if let Some (ref ref_ai) = ref_ai {
-                let selfagent = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 3);
-                let refagent = MinimaxPolicyAgent::new(ref_ai.get_evaluator(), ref_ai.get_policy(), 3);
+                let selfagent = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 2);
+                let refagent = MinimaxPolicyAgent::new(ref_ai.get_evaluator(), ref_ai.get_policy(), 2);
                 let b = fastrand::bool();
                 let result = if b {
                     gamesolver::matchmaker::play_game(&selfagent, &refagent).last().unwrap().game_state()
@@ -154,7 +168,12 @@ impl Commands {
     {
         let mut ai: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
         let opponent:QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&opponent_file).expect("valid file")).expect("json of RL");
+        let term = Arc::new(AtomicBool::new(false));
+        let err = signal_hook::flag::register(signal_hook::consts::SIGQUIT, Arc::clone(&term));
         for i in 0..iterations {
+            if term.load(Ordering::Relaxed) && err.is_ok() {
+                break;
+            }
             if progress {
                 println!("iteration: {}", i);
             }
@@ -201,7 +220,8 @@ fn run_command<G, E>(command: Commands)
         }
         Commands::Play {ai_file} => {
             let ai: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
-            let agenta = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 6);
+            let mut agenta = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 3);
+            agenta.batch_depth = 2;
             user_vs_agent(&agenta);
         }
         Commands::Compare {ai_file1, ai_file2, nb_games, depth} => {
@@ -210,16 +230,22 @@ fn run_command<G, E>(command: Commands)
     }
 }
 
+
+
 fn main() { 
 
     /*let evaluator = SimpleEval::new();
-    let agent1 = MinimaxAgent::new(&evaluator, 4);
+    //let agent1 = MinimaxAgent::new(&evaluator, 4);
+    let agent = crate::gamesolver::agents::CompositeAgent::<SimpleEval>::new(&evaluator, 4, 0, 6);
+
     //let agent2 = crate::gamesolver::agents::MinimaxAgent::new(&evaluator, 4);
     crate::gamesolver::matchmaker::user_vs_user::<Stack4>();
-    //user_vs_agent::<Stack4, MinimaxAgent<SimpleEval>>(&agent1);
-
+    //user_vs_agent::<Stack4, _>(&agent);
     return ();
     */
+    let ai: QLearning<Stack4Evaluators> = serde_json::from_str(&std::fs::read_to_string("smallcnn.json").expect("valid file")).expect("json of RL");
+
+    println!("{:?}", _mse_stack4(ai.get_evaluator()));
 
     let args = Cli::parse();
     match args.game {
@@ -230,6 +256,22 @@ fn main() {
             run_command::<Stack4, Stack4Evaluators>(args.command);
         }
     }
+}
+
+fn _mse_stack4<E: Evaluator<Stack4>>(evaluator: &E) -> f64 {
+    let actions = vec![(3, 0), (4, 0), (3, 1), (2, 0), (2, 1), (5, 0), (0, 3), (2, 2), (0, 4), (2, 3), (3, 2), (6, 0)];
+    let mut board = Stack4::new();
+    for action in actions {
+        board.play_action(action);
+    }
+    let vyellow = evaluator.value(&board, Player::Yellow);
+    let vred = evaluator.value(&board, Player::Red);
+    println!("vyellow={:.5}", vyellow);
+    println!("vred=   {:.5}", vred);
+    println!("diff=   {:.5}\n", vred-vyellow);
+
+
+    ((vyellow+1.0)*(vyellow+1.0)+(vred-1.0)*(vred-1.0))/2.0
 }
 
 fn _mse_cnneval<E: Evaluator<Connect4>>(evaluator: &E) -> f64 {
