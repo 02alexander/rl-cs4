@@ -8,22 +8,21 @@ extern crate futures;
 
 use num_traits::{FromPrimitive};
 use lazy_static::lazy_static;
-use actix_web::{get, post, web, App, HttpServer, Responder};
+use actix_web::{get, web, App, HttpServer, Responder};
 use actix_web::middleware::Logger;
 use actix_files::Files;
-use futures::StreamExt;
 
 use gamesolver::evaluators::CNNEval;
-use gamesolver::agents::{MinimaxAgent, Agent};
+use gamesolver::agents::{CompositeAgent, Agent};
 use gamesolver::evaluators::Stack4Evaluators;
-use gamesolver::qlearning::{QLearning, RL};
+use gamesolver::qlearning::{QLearning};
 use gamesolver::games::Player;
 use gamesolver::games::stack4::Stack4;
 use gamesolver::games::Game;
 use serde::{Serialize, Deserialize};
 use std::fs;
 
-static AI_PATH: &str = "ai.json";
+static AI_PATH: &str = "new_cons.json";
 
 #[derive(Serialize, Deserialize)]
 struct MoveRequest {
@@ -46,7 +45,8 @@ lazy_static! {
 }
 
 fn calc_move(board: &Stack4, player: Player) -> <Stack4 as Game>::Action {
-    let agent = MinimaxAgent::<Stack4Evaluators>::new(&EVALUATOR, 5);
+    //let agent = MinimaxAgent::<Stack4Evaluators>::new(&EVALUATOR, 5);
+    let agent = CompositeAgent::<Stack4Evaluators>::new(&EVALUATOR, 4, 0, 6);
     agent.get_action(board, player)
 }
 

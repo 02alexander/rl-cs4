@@ -7,7 +7,6 @@ use crate::matchmaker::PlayableGame;
 use smallvec::SmallVec;
 use std::io;
 use std::io::BufRead;
-use num_traits::{FromPrimitive};
 
 
 pub const BOARD_WIDTH: usize = 7;
@@ -227,6 +226,9 @@ impl Game for Connect4 {
             }
         }
         v
+    }
+    fn shape() -> [usize; 2] {
+        [BOARD_WIDTH, BOARD_HEIGHT]
     }
     fn uid(&self) -> u128 {
         self.board

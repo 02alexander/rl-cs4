@@ -169,7 +169,6 @@ impl<'a, T, G> Agent<G> for CompositeAgent<'a, T>
         let mut unclear_actions = Vec::new(); // actions where the search with SimpleEval returned 0.0 (heuristic value or draw).
 
         let actions: Vec<G::Action> = board.legal_actions().collect();
-        let simple_values = vec![0.0; actions.len()];
         let mut tt = TranspositionTable::new();
         
         let simple_eval = crate::evaluators::SimpleEval::new();

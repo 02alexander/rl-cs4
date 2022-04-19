@@ -1,4 +1,3 @@
-use crate::games::connect4::{BOARD_HEIGHT, BOARD_WIDTH};
 use crate::games::{Player, GameState, Game};
 use super::Evaluator;
 use anyhow::Result;
@@ -38,12 +37,13 @@ impl<G> Evaluator<G> for CNNEval where G: Game {
             GameState::Draw => 0.0,
             GameState::InProgress => {
                 let vectorized_board = board.vectorize(player);
+                let shape = G::shape();
                 let tensor = unsafe {
                     let ptr = vectorized_board.as_ptr();
                     let t = tch::Tensor::of_blob(
                         ptr as *const u8, 
-                        &[1,1,BOARD_HEIGHT as i64, BOARD_WIDTH as i64], 
-                        &[0, 0, BOARD_WIDTH as i64, 1],
+                        &[1,1,shape[0] as i64, shape[1] as i64], 
+                        &[0, 0, shape[0] as i64, 1],
                         tch::Kind::Double,
                         tch::Device::Cpu,
                     );
@@ -58,12 +58,14 @@ impl<G> Evaluator<G> for CNNEval where G: Game {
         }
     }
     fn values(&self, boards: &Vec<G>, player: Player) -> Vec<f64> {
-        let mut vectorized_boards: Vec<f64> = Vec::with_capacity(42*boards.len());
+        let mut vectorized_boards: Vec<f64> = Vec::with_capacity(64*boards.len());
         for board in boards {
             vectorized_boards.append(&mut board.vectorize(player));
         }
         let mut tensor = tch::Tensor::of_slice(&vectorized_boards);
-        let _ = tensor.resize_(&[boards.len() as i64,1,BOARD_HEIGHT as i64, BOARD_WIDTH as i64]);
+        let shape = G::shape();
+
+        let _ = tensor.resize_(&[boards.len() as i64,1,shape[0] as i64, shape[1] as i64]);
         let v = self.model.forward_t(&tensor, true);
         let out: Vec<f64> = Vec::from(v);
         out
@@ -74,7 +76,8 @@ impl<G> Evaluator<G> for CNNEval where G: Game {
             var.zero_grad();
         }
         let mut tboard = tch::Tensor::of_slice(&board.vectorize(player));
-        let _ = tboard.resize_(&[1, 1, 6, 7]);
+        let shape = G::shape();
+        let _ = tboard.resize_(&[1, 1, shape[0] as i64, shape[1] as i64]);
         let _out = self.model.forward_t(&tboard, true);
         _out.backward();
         

@@ -16,7 +16,8 @@ impl<T> Evaluator<T> for SimpleEval where T: Game {
     fn value(&self, board: &T, player: Player) -> f64 {
         match board.game_state() {
             GameState::Won(p) => {
-                if p == player {1.0/board.length() as f64} else {-1.0/board.length() as f64}
+                //if p == player {1.0/board.length() as f64} else {-1.0/board.length() as f64}
+                if p == player {1./0. as f64} else {-1./0. as f64}
             },
             GameState::Draw => 0.0,
             GameState::InProgress => {

@@ -9,7 +9,7 @@ use std::fmt;
 
 // A two player with three possible outcomes, win for either player or a draw.
 pub trait Game: Clone+Copy+fmt::Debug {
-    type Action: Copy;
+    type Action: Copy+fmt::Debug;
     
     fn new() -> Self;
     fn play_action(&mut self, action: Self::Action);
@@ -29,6 +29,8 @@ pub trait Game: Clone+Copy+fmt::Debug {
 
     // How many moves has been played.
     fn length(&self) -> u32;
+
+    fn shape() -> [usize; 2];
 
 }
 

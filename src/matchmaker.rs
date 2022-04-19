@@ -138,8 +138,10 @@ impl<'a, G> MatchMaker<'a, G>
 pub fn user_vs_user<G: PlayableGame>() {
     let mut board = G::new();
     let mut last_action: Option<G::Action> = None;
+    let mut actions = Vec::new();
     loop {
         println!("{:?}", board);
+        println!("{:?}", actions);
         println!("{:?}", board.game_state());
         let (action, reverse) = board.get_action_from_user();
         if reverse {
@@ -149,13 +151,16 @@ pub fn user_vs_user<G: PlayableGame>() {
         } else {
             last_action = Some(action);
             board.play_action(action);
+            actions.push(action);
             match board.game_state() {
                 GameState::Draw => {
                     println!("Draw");
+                    break
                 }
                 GameState::InProgress => {},
                 GameState::Won(player) => {
                     println!("{:?} won", player);   
+                    break
                 }
             }
         }
