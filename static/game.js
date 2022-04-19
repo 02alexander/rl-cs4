@@ -56,45 +56,48 @@ function localGame() {
 
 		stack4x4.placePiece(boardCordx,boardCordy);
 		stack4x4.renderBoard();
-		let wn = stack4x4.hasWon(1); // ring
-		if (wn[0]) {
-			for (let i = 0; i < wn[1].length; i+=2) {
-				let start = stack4x4.getRect(wn[1][i], wn[1][i+1]);
-				let startx = start.x + start.w/2;
-				let starty = start.y + start.h/2;
-
-				let end = stack4x4.getRect(wn[2][i], wn[2][i+1]);
-				let endx = end.x + end.w/2;
-				let endy = end.y + end.h/2;
-				gameArea.drawLine(startx, starty, endx, endy, "green");
-			}
-			setWinner(1)
-			gameIsOver = true;
-		}
-		wn = stack4x4.hasWon(2); // kryss
-		if (wn[0]) {
-			for (let i = 0; i < wn[1].length; i+=2) {
-				let start = stack4x4.getRect(wn[1][i], wn[1][i+1]);
-				let startx = start.x + start.w/2;
-				let starty = start.y + start.h/2;
-
-				let end = stack4x4.getRect(wn[2][i], wn[2][i+1]);
-				let endx = end.x + end.w/2;
-				let endy = end.y + end.h/2;
-				gameArea.drawLine(startx, starty, endx, endy, "green");
-			}
-			setWinner(2)
-			gameIsOver = true;
-		}
-
-		getMoveFromServer(boardToServerFormat(stack4x4.board), stack4x4.whoseTurn);
-		stack4x4.renderBoard();
 		stack4x4.highlightAccecpableMoves();
 		stack4x4.showWhoseTurn();
+		if (check_for_winners()) {
+			return
+		}
+		getMoveFromServer(boardToServerFormat(stack4x4.board), stack4x4.whoseTurn);
 	});
-
 }
 
+function check_for_winners() {
+	let wn = stack4x4.hasWon(1); // ring
+	if (wn[0]) {
+		console.log("rings won")
+		draw_winning_line(wn)
+		setWinner(1)
+		gameIsOver = true;
+		return true
+	}
+	wn = stack4x4.hasWon(2); // kryss
+	if (wn[0]) {
+		console.log("kryss won")
+		draw_winning_line(wn)
+		setWinner(2)
+		gameIsOver = true;
+		return true
+	}
+	return false
+}
+
+function draw_winning_line(wn) {
+	console.log("Draws winning line")
+	for (let i = 0; i < wn[1].length; i+=2) {
+		let start = stack4x4.getRect(wn[1][i], wn[1][i+1]);
+		let startx = start.x + start.w/2;
+		let starty = start.y + start.h/2;
+
+		let end = stack4x4.getRect(wn[2][i], wn[2][i+1]);
+		let endx = end.x + end.w/2;
+		let endy = end.y + end.h/2;
+		gameArea.drawLine(startx, starty, endx, endy, "green");
+	}
+}
 
 function boardToServerFormat(board) {
 	let new_board = []
@@ -115,6 +118,7 @@ function getMoveFromServer(formatted_board, player) {
 	};
 	let data = JSON.stringify(raw_data)
 	xhr.onreadystatechange = function() { // Call a function when the state changes.
+		console.log(this.status)
 		if (this.readyState === XMLHttpRequest.DONE && this.status === 200) {
 			console.log(this.responseText)
 			let data = JSON.parse(this.responseText)
@@ -122,6 +126,7 @@ function getMoveFromServer(formatted_board, player) {
 			stack4x4.renderBoard();
 			stack4x4.highlightAccecpableMoves();
 			stack4x4.showWhoseTurn();
+			check_for_winners()
 			// Request finished. Do processing here.
 		}
 	}
