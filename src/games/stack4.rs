@@ -73,7 +73,7 @@ impl Stack4 {
             red_mask <<= 2;
             red_mask += 1;
         }
-        yellow_mask == (self.board&yellow_mask | (self.board&red_mask) >> 1) 
+        yellow_mask == (self.board&yellow_mask | (self.board&red_mask) << 1) 
         // !( ((self.board >> 1)|self.board) |  )==0
         //self.legal_actions().count() == 0
     }
@@ -161,7 +161,7 @@ impl Game for Stack4 {
 
     // Assumes that 'action' is a legal action.
     fn play_action(&mut self, action: Self::Action) {
-        //assert_eq!(self.game_state, GameState::InProgress);
+        assert_eq!(self.game_state, GameState::InProgress);
         self.set(action.0, action.1, self.cur_player as u8);
         self.nb_moves += 1;
 
@@ -249,6 +249,10 @@ impl Game for Stack4 {
         v
     }
 
+    fn shape() -> [usize; 2] {
+        [BOARD_SIZE, BOARD_SIZE]
+    }
+
     fn symmetries(&self) -> Vec<Self> {
         let mut symmetries = Vec::with_capacity(8);
         for n in 0..4 {
@@ -328,5 +332,34 @@ impl PlayableGame for Stack4 {
             }
         }
         panic!("Failed to get input from user");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Stack4;
+    use crate::games::{Game, GameState};
+    #[test]
+    fn draw() {
+        let actions = vec![(3, 0), (3, 1), (0, 2), (1, 0), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (0, 0), (0, 1), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (7, 7), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (7, 6), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (7, 5), (4, 0), (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (5, 0), (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 7), (6, 7), (6, 0), (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (7, 0), (7, 1), (7, 2), (7, 3), (7, 4)];
+        let mut board = Stack4::new();
+        for action in actions {
+            board.play_action(action);
+        }
+        println!("{:?}", board);
+        assert_eq!(board.game_state(), GameState::Draw);
+
+        let mut board = Stack4::new();
+        board.nb_moves = 64;
+        board.board = 120182736557749463504389418626142590566;
+        board.reverse_last_action((0,0));
+        println!("{:?}", board);
+        assert_eq!(board.game_state(), GameState::InProgress);
+        assert!(!board.is_full());
+        board.play_action((0,0));
+        println!("{:?}", board);
+        println!("{:?}", board.game_state());
+        assert!(board.is_full());
+        assert_ne!(board.game_state(), GameState::InProgress);
     }
 }
