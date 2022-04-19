@@ -58,6 +58,7 @@ pub struct QLearning<E> {
     pub step_size: f64,
     pub discount: f64,
     pub depth: u32, // depth to search during training.
+    pub batch_depth: u32,
 
     // Stores scores when training against an opponent. 
     // Useful when measuring performance of algorithm.
@@ -77,6 +78,7 @@ impl<E> QLearning<E> {
             step_size,
             discount: 1.0,
             depth: 4,
+            batch_depth: 0,
             scores: Vec::new(),
             lambda: 0.0, // Default is one step TD.
             eligibilty_trace: None
@@ -115,7 +117,7 @@ impl<G, E> RL<G, E> for QLearning<E>
                     }
                 }
             } else {
-                let v = abnegamax(*next_state, self.depth, self.depth, &self.evaluator, player, None);
+                let v = abnegamax(*next_state, self.depth, self.batch_depth, &self.evaluator, player, None);
 
                 // The reward is baked into the target action value.
                 if v == 1./0. {
