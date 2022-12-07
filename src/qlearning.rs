@@ -1,11 +1,9 @@
-
-use crate::evaluators::{Evaluator};
-use crate::games::{GameState, Player, Game};
-use crate::policies::Policy;
-use crate::search::{abnegamax};
 use crate::agents::{Agent, BatchMinimaxAgent, MinimaxPolicyAgent};
-use serde::{Serialize, Deserialize};
-
+use crate::evaluators::Evaluator;
+use crate::games::{Game, GameState, Player};
+use crate::policies::Policy;
+use crate::search::abnegamax;
+use serde::{Deserialize, Serialize};
 
 // returns the board after every move. which means that it excludes starting position but includes end position.
 // p1 always starts.
@@ -30,9 +28,8 @@ pub fn episode<G: Game>(p1: &dyn Agent<G>, p2: &dyn Agent<G>) -> Vec<(G, bool)> 
 }
 
 pub trait RL<G, E> {
-
     // Update all states in game_hist where board.cur_player == 'player'.
-    // game_hist is all visited position with a boolean being true if agent 
+    // game_hist is all visited position with a boolean being true if agent
     // choosed to explore in that state.
     fn update(&mut self, game_hist: &Vec<(G, bool)>, player: Player);
 
@@ -41,7 +38,7 @@ pub trait RL<G, E> {
 
     // Learns from playing against opponent.
     fn play_against(&mut self, opponent: &dyn Agent<G>);
-    
+
     fn get_evaluator<'a>(&'a self) -> &'a E;
     fn get_policy<'a>(&'a self) -> &'a dyn Policy;
     fn get_depth(&self) -> u32;
@@ -49,7 +46,6 @@ pub trait RL<G, E> {
         None
     }
 }
-
 
 #[derive(Serialize, Deserialize)]
 pub struct QLearning<E> {
@@ -60,17 +56,17 @@ pub struct QLearning<E> {
     pub depth: u32, // depth to search during training.
     pub batch_depth: u32,
 
-    // Stores scores when training against an opponent. 
+    // Stores scores when training against an opponent.
     // Useful when measuring performance of algorithm.
     pub scores: Vec<f64>,
 
     // Decay of eligibility trace.
-    pub lambda: f64, 
+    pub lambda: f64,
 
     eligibilty_trace: Option<Vec<f64>>,
 }
 
-impl<E> QLearning<E> { 
+impl<E> QLearning<E> {
     pub fn new(evaluator: E, exploration_policy: Box<dyn Policy>, step_size: f64) -> Self {
         QLearning::<E> {
             evaluator,
@@ -81,48 +77,57 @@ impl<E> QLearning<E> {
             batch_depth: 0,
             scores: Vec::new(),
             lambda: 0.0, // Default is one step TD.
-            eligibilty_trace: None
+            eligibilty_trace: None,
         }
     }
 }
 
-impl<G, E> RL<G, E> for QLearning<E> 
-    where
-        G: Game,
-        G::Action: Copy,
-        E: Evaluator<G>
+impl<G, E> RL<G, E> for QLearning<E>
+where
+    G: Game,
+    G::Action: Copy,
+    E: Evaluator<G>,
 {
-    
     fn update(&mut self, game_hist: &Vec<(G, bool)>, player: Player) {
-
         // states where the board.cur_player is 'player'
-        let mut states = Vec::with_capacity(game_hist.len()/2+1);
-        let mut explored = Vec::with_capacity(game_hist.len()/2+1);
+        let mut states = Vec::with_capacity(game_hist.len() / 2 + 1);
+        let mut explored = Vec::with_capacity(game_hist.len() / 2 + 1);
         for (board, e) in game_hist {
             if board.cur_player() == player {
                 states.push(board);
                 explored.push(*e);
             }
         }
-        for i in 0..(states.len()-1) {
-            let next_state = &states[i+1];
-            let target_av = if i == states.len()-2 {
+        for i in 0..(states.len() - 1) {
+            let next_state = &states[i + 1];
+            let target_av = if i == states.len() - 2 {
                 match game_hist.last().unwrap().0.game_state() {
                     GameState::Won(p) => {
-                        if p == player {1.0} else {-1.0}
-                    },
-                    GameState::Draw => { 0.0 },
+                        if p == player {
+                            1.0
+                        } else {
+                            -1.0
+                        }
+                    }
+                    GameState::Draw => 0.0,
                     GameState::InProgress => {
                         panic!("last state is in progress")
                     }
                 }
             } else {
-                let v = abnegamax(*next_state, self.depth, self.batch_depth, &self.evaluator, player, None);
+                let v = abnegamax(
+                    *next_state,
+                    self.depth,
+                    self.batch_depth,
+                    &self.evaluator,
+                    player,
+                    None,
+                );
 
                 // The reward is baked into the target action value.
-                if v == 1./0. {
+                if v == 1. / 0. {
                     1.0
-                } else if v == -1./0. {
+                } else if v == -1. / 0. {
                     -1.0
                 } else {
                     v
@@ -137,22 +142,30 @@ impl<G, E> RL<G, E> for QLearning<E>
             //let symmetric_states = vec![states[i]];
             for state in &symmetric_states {
                 let grad: Vec<f64> = self.evaluator.gradient(state, player);
-                let et = self.eligibilty_trace.get_or_insert(vec![0.0;grad.len()]);
+                let et = self.eligibilty_trace.get_or_insert(vec![0.0; grad.len()]);
                 for (trace, g) in et.iter_mut().zip(grad) {
-                    *trace = self.lambda*(*trace) + g;
-                }         
+                    *trace = self.lambda * (*trace) + g;
+                }
             }
             for state in &symmetric_states {
                 let current_av = self.evaluator.value(state, player);
-                let deltas: Vec<_> = self.eligibilty_trace.as_ref().unwrap().iter().map(|g| g*(self.discount*target_av-current_av)*self.step_size).collect();
+                let deltas: Vec<_> = self
+                    .eligibilty_trace
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|g| g * (self.discount * target_av - current_av) * self.step_size)
+                    .collect();
                 self.evaluator.apply_update(&deltas);
             }
         }
     }
 
     fn self_play(&mut self) {
-        let agenta = MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
-        let agentb = MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
+        let agenta =
+            MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
+        let agentb =
+            MinimaxPolicyAgent::new(&self.evaluator, &*self.exploration_policy, self.depth);
         let game_hist: Vec<(G, bool)> = episode(&agenta, &agentb);
         self.update(&game_hist, Player::Red);
         self.update(&game_hist, Player::Yellow);
@@ -193,4 +206,3 @@ impl<G, E> RL<G, E> for QLearning<E>
         Some(&self.scores)
     }
 }
-

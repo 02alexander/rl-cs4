@@ -1,28 +1,28 @@
 extern crate actix_web;
-extern crate lazy_static;
-extern crate gamesolver;
-extern crate serde;
-extern crate serde_json;
 extern crate env_logger;
 extern crate futures;
+extern crate gamesolver;
+extern crate lazy_static;
+extern crate serde;
+extern crate serde_json;
 
-use num_traits::{FromPrimitive};
-use lazy_static::lazy_static;
-use actix_web::{get, web, App, HttpServer, Responder};
-use actix_web::middleware::Logger;
 use actix_files::Files;
+use actix_web::middleware::Logger;
+use actix_web::{get, web, App, HttpServer, Responder};
+use lazy_static::lazy_static;
+use num_traits::FromPrimitive;
 
+use gamesolver::agents::{Agent, CompositeAgent};
 use gamesolver::evaluators::CNNEval;
-use gamesolver::agents::{CompositeAgent, Agent};
 use gamesolver::evaluators::Stack4Evaluators;
-use gamesolver::qlearning::{QLearning};
-use gamesolver::games::Player;
 use gamesolver::games::stack4::Stack4;
 use gamesolver::games::Game;
-use serde::{Serialize, Deserialize};
+use gamesolver::games::Player;
+use gamesolver::qlearning::QLearning;
+use serde::{Deserialize, Serialize};
 use std::fs;
 
-static AI_PATH: &str = "new_cons.json";
+static AI_PATH: &str = "badcnn.json";
 
 #[derive(Serialize, Deserialize)]
 struct MoveRequest {
@@ -39,7 +39,8 @@ struct Move {
 
 lazy_static! {
     static ref EVALUATOR: Stack4Evaluators = {
-        let ai: QLearning<Stack4Evaluators> = serde_json::from_str(&fs::read_to_string(AI_PATH).unwrap()).unwrap();
+        let ai: QLearning<Stack4Evaluators> =
+            serde_json::from_str(&fs::read_to_string(AI_PATH).unwrap()).unwrap();
         ai.evaluator
     };
 }
@@ -61,8 +62,8 @@ async fn request_move(info: web::Json<MoveRequest>) -> web::Json<Move> {
 
     let mut board = Stack4::new();
     for (i, &player) in info.board.iter().enumerate() {
-        let row = i%8;
-        let col = i/8;
+        let row = i % 8;
+        let col = i / 8;
         if player == 0 {
             board.set(col, row, player);
         } else {
@@ -72,28 +73,26 @@ async fn request_move(info: web::Json<MoveRequest>) -> web::Json<Move> {
     let player = FromPrimitive::from_u8(info.player_to_move).expect("an u8");
     let (x, y) = calc_move(&board, player);
     println!("{:?}", board);
-    println!("{:?}", (x,y));
-    web::Json(
-        Move {
-            x,
-            y,
-            player: info.player_to_move
-        }
-    )
+    println!("{:?}", (x, y));
+    web::Json(Move {
+        x,
+        y,
+        player: info.player_to_move,
+    })
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    HttpServer::new(|| App::new()
-        .wrap(Logger::default())
-        .route("/", web::post().to(request_move))
-        .service(index)
-        .service(Files::new("/", "static/").prefer_utf8(true))
-    )
-        .bind("127.0.0.1:8080")?
-        .run()
-        .await
+    HttpServer::new(|| {
+        App::new()
+            .wrap(Logger::default())
+            .route("/", web::post().to(request_move))
+            .service(index)
+            .service(Files::new("/", "static/").prefer_utf8(true))
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
 }

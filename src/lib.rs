@@ -1,7 +1,7 @@
-pub mod matchmaker;
+pub mod agents;
 pub mod evaluators;
 pub mod games;
-pub mod search;
-pub mod qlearning;
+pub mod matchmaker;
 pub mod policies;
-pub mod agents;
+pub mod qlearning;
+pub mod search;

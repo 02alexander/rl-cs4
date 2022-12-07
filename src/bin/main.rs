@@ -1,25 +1,27 @@
-extern crate serde;
 extern crate clap;
 extern crate fastrand;
-extern crate serde_json;
 extern crate gamesolver;
+extern crate serde;
+extern crate serde_json;
 extern crate signal_hook;
 
-use gamesolver::games::connect4::{Connect4};
+use clap::{ArgEnum, Parser, Subcommand};
+use gamesolver::agents::{Agent, MinimaxAgent, MinimaxPolicyAgent};
+use gamesolver::evaluators::{
+    cnn::CNNEval, simple::SimpleEval, Connect4Evaluators, Evaluator, Stack4Evaluators,
+};
+use gamesolver::games::connect4::Connect4;
 use gamesolver::games::stack4::Stack4;
+use gamesolver::games::Game;
 use gamesolver::games::{GameState, Player};
-use gamesolver::evaluators::{Evaluator, Connect4Evaluators, Stack4Evaluators, simple::SimpleEval, cnn::CNNEval};
-use gamesolver::agents::{Agent, MinimaxPolicyAgent, MinimaxAgent};
-use gamesolver::matchmaker::{MatchMaker, PlayableGame, user_vs_agent};
-use gamesolver::games::{Game};
+use gamesolver::matchmaker::{user_vs_agent, MatchMaker, PlayableGame};
+use gamesolver::policies::EpsilonGreedy;
 use gamesolver::qlearning::{QLearning, RL};
-use gamesolver::policies::{EpsilonGreedy};
-use clap::{Parser, Subcommand, ArgEnum};
-use serde::{Serialize};
+use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use lazy_static::lazy_static;
 
 /*lazy_static! {
     static ref QUIT: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
@@ -32,13 +34,13 @@ struct Cli {
     #[clap(arg_enum)]
     game: Games,
     #[clap(subcommand)]
-    command: Commands
+    command: Commands,
 }
 
 #[derive(ArgEnum, Clone)]
 enum Games {
     Connect4,
-    Stack4
+    Stack4,
 }
 
 #[derive(Subcommand)]
@@ -46,19 +48,19 @@ enum Commands {
     Create {
         ai_file: String,
 
-        /// File containing libtorch model if you want to create for example a CNN evaluator. 
-        model_file: Option<String>
+        /// File containing libtorch model if you want to create for example a CNN evaluator.
+        model_file: Option<String>,
     },
-    SelfPlay { 
+    SelfPlay {
         /// AI that is to be trained.
         ai_file: String,
-        #[clap(short, long, default_value_t=20)]
+        #[clap(short, long, default_value_t = 20)]
         iterations: u32,
 
         #[clap(short, long)]
         /// Print which iteration it's on.
         progress: bool,
-        
+
         #[clap(short, long)]
         reference_ai: Option<String>,
     },
@@ -68,7 +70,7 @@ enum Commands {
 
         opponent_file: String,
 
-        #[clap(short, long, default_value_t=20)]
+        #[clap(short, long, default_value_t = 20)]
         iterations: u32,
 
         #[clap(short, long)]
@@ -80,17 +82,15 @@ enum Commands {
         scores: bool,
     },
     /// Lets user play a game against the AI.
-    Play {
-        ai_file: String
-    },
+    Play { ai_file: String },
     Compare {
         ai_file1: String,
         ai_file2: String,
-        #[clap(default_value_t=100)]
+        #[clap(default_value_t = 100)]
         nb_games: u32,
-        #[clap(default_value_t=4)]
+        #[clap(default_value_t = 4)]
         depth: u32,
-    }
+    },
 }
 
 impl Commands {
@@ -113,21 +113,30 @@ impl Commands {
             std::fs::write(ai_file, &serialized_ai).unwrap();
         }
     }
-    fn self_play<G, E>(ai_file: String, iterations: u32, progress: bool, reference_ai: Option<String>) 
-        where
-            G: Game,
-            E: Evaluator<G> + Serialize + DeserializeOwned,
+    fn self_play<G, E>(
+        ai_file: String,
+        iterations: u32,
+        progress: bool,
+        reference_ai: Option<String>,
+    ) where
+        G: Game,
+        E: Evaluator<G> + Serialize + DeserializeOwned,
     {
-        let mut ai: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
+        let mut ai: QLearning<E> =
+            serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file"))
+                .expect("json of RL");
         let ref_ai: Option<QLearning<E>> = if let Some(ref_ai_file) = reference_ai {
-            Some(serde_json::from_str(&std::fs::read_to_string(&ref_ai_file).expect("valid file")).expect("json of RL"))
+            Some(
+                serde_json::from_str(&std::fs::read_to_string(&ref_ai_file).expect("valid file"))
+                    .expect("json of RL"),
+            )
         } else {
             None
         };
         let mut scores: Vec<f64> = Vec::new();
         let term = Arc::new(AtomicBool::new(false));
         let err = signal_hook::flag::register(signal_hook::consts::SIGQUIT, Arc::clone(&term));
-        
+
         for i in 0..iterations {
             if term.load(Ordering::Relaxed) && err.is_ok() {
                 break;
@@ -136,22 +145,29 @@ impl Commands {
                 println!("iteration: {}", i);
             }
             ai.self_play();
-            if let Some (ref ref_ai) = ref_ai {
+            if let Some(ref ref_ai) = ref_ai {
                 let selfagent = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 2);
-                let refagent = MinimaxPolicyAgent::new(ref_ai.get_evaluator(), ref_ai.get_policy(), 2);
+                let refagent =
+                    MinimaxPolicyAgent::new(ref_ai.get_evaluator(), ref_ai.get_policy(), 2);
                 let b = fastrand::bool();
                 let result = if b {
-                    gamesolver::matchmaker::play_game(&selfagent, &refagent).last().unwrap().game_state()
+                    gamesolver::matchmaker::play_game(&selfagent, &refagent)
+                        .last()
+                        .unwrap()
+                        .game_state()
                 } else {
-                    gamesolver::matchmaker::play_game(&refagent, &selfagent).last().unwrap().game_state()
+                    gamesolver::matchmaker::play_game(&refagent, &selfagent)
+                        .last()
+                        .unwrap()
+                        .game_state()
                 };
                 let score = match result {
                     GameState::Won(Player::Red) => 1.0,
                     GameState::Won(Player::Yellow) => -1.0,
                     GameState::Draw => 0.0,
-                    GameState::InProgress => panic!("Game ended while still in progress.")
+                    GameState::InProgress => panic!("Game ended while still in progress."),
                 };
-                let score = if b {score} else {-score};
+                let score = if b { score } else { -score };
                 scores.push(score);
             }
         }
@@ -161,13 +177,22 @@ impl Commands {
         let serialized_ai = serde_json::to_string(&ai).unwrap();
         std::fs::write(ai_file, &serialized_ai).unwrap();
     }
-    fn train_against<G, E>(ai_file: String, opponent_file: String, iterations: u32, progress: bool, scores: bool) 
-        where
-            G: Game,
-            E: Evaluator<G>+Serialize+DeserializeOwned,
+    fn train_against<G, E>(
+        ai_file: String,
+        opponent_file: String,
+        iterations: u32,
+        progress: bool,
+        scores: bool,
+    ) where
+        G: Game,
+        E: Evaluator<G> + Serialize + DeserializeOwned,
     {
-        let mut ai: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
-        let opponent:QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&opponent_file).expect("valid file")).expect("json of RL");
+        let mut ai: QLearning<E> =
+            serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file"))
+                .expect("json of RL");
+        let opponent: QLearning<E> =
+            serde_json::from_str(&std::fs::read_to_string(&opponent_file).expect("valid file"))
+                .expect("json of RL");
         let term = Arc::new(AtomicBool::new(false));
         let err = signal_hook::flag::register(signal_hook::consts::SIGQUIT, Arc::clone(&term));
         for i in 0..iterations {
@@ -177,7 +202,11 @@ impl Commands {
             if progress {
                 println!("iteration: {}", i);
             }
-            let opponent = MinimaxPolicyAgent::new(opponent.get_evaluator(), opponent.get_policy(), opponent.get_depth());
+            let opponent = MinimaxPolicyAgent::new(
+                opponent.get_evaluator(),
+                opponent.get_policy(),
+                opponent.get_depth(),
+            );
             ai.play_against(&opponent);
         }
         if scores {
@@ -187,12 +216,16 @@ impl Commands {
         std::fs::write(ai_file, &serialized_ai).unwrap();
     }
     fn compare<G, E>(ai_file1: String, ai_file2: String, nb_games: u32, depth: u32)
-        where
-            G: Game,
-            E: Evaluator<G>+Serialize+DeserializeOwned,
+    where
+        G: Game,
+        E: Evaluator<G> + Serialize + DeserializeOwned,
     {
-        let ai1: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file1).expect("valid file")).expect("json of RL");
-        let ai2: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file2).expect("valid file")).expect("json of RL");
+        let ai1: QLearning<E> =
+            serde_json::from_str(&std::fs::read_to_string(&ai_file1).expect("valid file"))
+                .expect("json of RL");
+        let ai2: QLearning<E> =
+            serde_json::from_str(&std::fs::read_to_string(&ai_file2).expect("valid file"))
+                .expect("json of RL");
         let agenta = MinimaxPolicyAgent::new(ai1.get_evaluator(), ai1.get_policy(), depth);
         let agentb = MinimaxPolicyAgent::new(ai2.get_evaluator(), ai2.get_policy(), depth);
         let mut mm = MatchMaker::new();
@@ -203,37 +236,55 @@ impl Commands {
     }
 }
 
-fn run_command<G, E>(command: Commands) 
-    where
-        G: PlayableGame,
-        E: Evaluator<G>+Serialize+DeserializeOwned
+fn run_command<G, E>(command: Commands)
+where
+    G: PlayableGame,
+    E: Evaluator<G> + Serialize + DeserializeOwned,
 {
     match command {
-        Commands::Create{ai_file, model_file} => {
+        Commands::Create {
+            ai_file,
+            model_file,
+        } => {
             Commands::create(ai_file, model_file);
-        },
-        Commands::SelfPlay {ai_file, iterations, progress, reference_ai} => {
+        }
+        Commands::SelfPlay {
+            ai_file,
+            iterations,
+            progress,
+            reference_ai,
+        } => {
             Commands::self_play::<G, E>(ai_file, iterations, progress, reference_ai);
         }
-        Commands::TrainAgainst { ai_file, opponent_file, iterations, progress, scores} => {
+        Commands::TrainAgainst {
+            ai_file,
+            opponent_file,
+            iterations,
+            progress,
+            scores,
+        } => {
             Commands::train_against::<G, E>(ai_file, opponent_file, iterations, progress, scores);
         }
-        Commands::Play {ai_file} => {
-            let ai: QLearning<E> = serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file")).expect("json of RL");
+        Commands::Play { ai_file } => {
+            let ai: QLearning<E> =
+                serde_json::from_str(&std::fs::read_to_string(&ai_file).expect("valid file"))
+                    .expect("json of RL");
             let mut agenta = MinimaxPolicyAgent::new(ai.get_evaluator(), ai.get_policy(), 3);
             agenta.batch_depth = 2;
             user_vs_agent(&agenta);
         }
-        Commands::Compare {ai_file1, ai_file2, nb_games, depth} => {
+        Commands::Compare {
+            ai_file1,
+            ai_file2,
+            nb_games,
+            depth,
+        } => {
             Commands::compare::<G, E>(ai_file1, ai_file2, nb_games, depth);
-        }   
+        }
     }
 }
 
-
-
-fn main() { 
-
+fn main() {
     /*let evaluator = SimpleEval::new();
     //let agent1 = MinimaxAgent::new(&evaluator, 4);
     let agent = crate::gamesolver::agents::CompositeAgent::<SimpleEval>::new(&evaluator, 4, 0, 6);
@@ -243,7 +294,9 @@ fn main() {
     //user_vs_agent::<Stack4, _>(&agent);
     return ();
     */
-    let ai: QLearning<Stack4Evaluators> = serde_json::from_str(&std::fs::read_to_string("smallcnn.json").expect("valid file")).expect("json of RL");
+    let ai: QLearning<Stack4Evaluators> =
+        serde_json::from_str(&std::fs::read_to_string("smallcnn.json").expect("valid file"))
+            .expect("json of RL");
 
     println!("{:?}", _mse_stack4(ai.get_evaluator()));
 
@@ -251,7 +304,7 @@ fn main() {
     match args.game {
         Games::Connect4 => {
             run_command::<Connect4, Connect4Evaluators>(args.command);
-        },
+        }
         Games::Stack4 => {
             run_command::<Stack4, Stack4Evaluators>(args.command);
         }
@@ -259,7 +312,20 @@ fn main() {
 }
 
 fn _mse_stack4<E: Evaluator<Stack4>>(evaluator: &E) -> f64 {
-    let actions = vec![(3, 0), (4, 0), (3, 1), (2, 0), (2, 1), (5, 0), (0, 3), (2, 2), (0, 4), (2, 3), (3, 2), (6, 0)];
+    let actions = vec![
+        (3, 0),
+        (4, 0),
+        (3, 1),
+        (2, 0),
+        (2, 1),
+        (5, 0),
+        (0, 3),
+        (2, 2),
+        (0, 4),
+        (2, 3),
+        (3, 2),
+        (6, 0),
+    ];
     let mut board = Stack4::new();
     for action in actions {
         board.play_action(action);
@@ -268,10 +334,9 @@ fn _mse_stack4<E: Evaluator<Stack4>>(evaluator: &E) -> f64 {
     let vred = evaluator.value(&board, Player::Red);
     println!("vyellow={:.5}", vyellow);
     println!("vred=   {:.5}", vred);
-    println!("diff=   {:.5}\n", vred-vyellow);
+    println!("diff=   {:.5}\n", vred - vyellow);
 
-
-    ((vyellow+1.0)*(vyellow+1.0)+(vred-1.0)*(vred-1.0))/2.0
+    ((vyellow + 1.0) * (vyellow + 1.0) + (vred - 1.0) * (vred - 1.0)) / 2.0
 }
 
 fn _mse_cnneval<E: Evaluator<Connect4>>(evaluator: &E) -> f64 {
@@ -286,5 +351,5 @@ fn _mse_cnneval<E: Evaluator<Connect4>>(evaluator: &E) -> f64 {
     println!("vyellow={:.5}", vyellow);
     println!("vred=   {:.5}\n", vred);
 
-    ((vyellow-1.0)*(vyellow-1.0)+(vred+1.0)*(vred+1.0))/2.0
+    ((vyellow - 1.0) * (vyellow - 1.0) + (vred + 1.0) * (vred + 1.0)) / 2.0
 }

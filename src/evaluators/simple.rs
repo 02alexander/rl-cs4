@@ -1,7 +1,6 @@
-
-use serde::{Serialize, Deserialize};
-use crate::games::{Game, Player, GameState};
 use super::Evaluator;
+use crate::games::{Game, GameState, Player};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct SimpleEval {}
@@ -12,17 +11,22 @@ impl SimpleEval {
     }
 }
 
-impl<T> Evaluator<T> for SimpleEval where T: Game {
+impl<T> Evaluator<T> for SimpleEval
+where
+    T: Game,
+{
     fn value(&self, board: &T, player: Player) -> f64 {
         match board.game_state() {
             GameState::Won(p) => {
                 //if p == player {1.0/board.length() as f64} else {-1.0/board.length() as f64}
-                if p == player {1./0. as f64} else {-1./0. as f64}
-            },
+                if p == player {
+                    1. / 0. as f64
+                } else {
+                    -1. / 0. as f64
+                }
+            }
             GameState::Draw => 0.0,
-            GameState::InProgress => {
-                0.0
-            },
+            GameState::InProgress => 0.0,
         }
     }
     fn gradient(&self, _board: &T, _player: Player) -> Vec<f64> {
